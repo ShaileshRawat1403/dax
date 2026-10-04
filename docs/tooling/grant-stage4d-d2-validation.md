@@ -1,6 +1,6 @@
 # D2 operator API candidate validation
 
-Status: uncommitted candidate, based on accepted
+Status: candidate API committed as `559582e` (ambient tooling `e1256c6`), based on accepted
 `7fc5cd14f2719ce54ef603c462cfe1efb9b083d5`. This is implementer evidence, not
 independent acceptance. No final D2 SHA, full-gate success or CI result is claimed.
 
@@ -36,8 +36,8 @@ owned feature checkout. Early production typechecks passed before SDK generation
 DAX lint passed with unchanged suppressions. A targeted run passed **147 tests,
 947 assertions across 12 files**, including the original compiled producer.
 
-The latest compiled producer passed **58 complete controls**: the retained 41 D1
-controls, 16 D2 Hono API controls and one source API refusal control. Actual modules,
+The latest compiled producer passed **61 complete controls**: the retained 41 D1
+controls, 19 D2 Hono API controls and one source API refusal control. Actual modules,
 local deterministic HTTP model, native binding/image checks and subprocesses are
 used; no authority/image/provider/dispatch gate is substituted. Cross-process API
 start yields one accepted response and one refusal, one canonical start and one
@@ -76,10 +76,15 @@ declared dependency: unrelated empty ancestor d3 type folders otherwise caused
 TS2688. DOM libraries and client runtime bytes remain unchanged. Full generation
 is intentionally not globally reproducible in this bounded API slice.
 
-A genuine revised r2 run reaches provider stop/idle but canonical completion
-refuses because native completion currently requires every historical approval
-approved, including superseded/expired r1. Fresh r1 and publication-recovery runs
-complete canonically. Astra approved a separate explicit canonical supersession proof correction; no historical approval denial or completion proof rule was weakened.
+A genuine revised r2 run initially refused completion because expired r1 had no
+explicit canonical supersession proof. The raw r2 failure is retained in
+`d2-producer-seventh/d1-producer-api.log`. Astra approved the narrow proof correction
+recorded in [grant-stage4d-supersession.md](grant-stage4d-supersession.md).
+The updated actual compiled r2/r3 producers complete canonically; ordinary pending,
+denied and expired approvals, expired asks and historical review expiry without
+proof still block before output artifacts. Focused checks passed **25 tests / 119
+assertions across 3 files**, including all 61 compiled controls and both SDK clients.
+Raw result: `d2-supersession-focused-third.log`; package typecheck is green.
 
 D3 MCP/tool/ask/delegation producer coverage, D4 live activity presentation and
 C2–C5 remaining conformance work are separate. No main merge, profile activation,

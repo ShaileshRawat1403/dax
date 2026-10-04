@@ -1,0 +1,7 @@
+{"variant":"unknown","controls":["unknown-image-remote-only-denied"],"providerCalls":0}
+
+INFO  2026-10-04T13:58:59 +42ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:59 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+barrier control unknown-image-remote-only-denied
+INFO  2026-10-04T13:58:59 +38ms service=default disposing all instances
+INFO  2026-10-04T13:58:59 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance

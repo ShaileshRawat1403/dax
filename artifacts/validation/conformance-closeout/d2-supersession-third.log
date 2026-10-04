@@ -1,0 +1,573 @@
+bun test v1.4.0 (34cbb9a40)
+
+src/conformance/grant-supersession.test.ts:
+INFO  2026-10-04T13:53:27 +618ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-W3bq0p/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-W3bq0p/project fromDirectory
+INFO  2026-10-04T13:53:27 +17ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +1ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +5ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:66:9)
+INFO  2026-10-04T13:53:27 +3ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-W3bq0p/project disposing instance
+(fail) journal-only two-link supersession reaches exact proven current review [52.94ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DZcoQ2/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DZcoQ2/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DZcoQ2/project disposing instance
+(fail) supersession equal refuses before journal publication [41.40ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-o6Bnhi/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-o6Bnhi/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +1ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-o6Bnhi/project disposing instance
+(fail) supersession older refuses before journal publication [39.71ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YJjnOG/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YJjnOG/project fromDirectory
+INFO  2026-10-04T13:53:27 +16ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-YJjnOG/project disposing instance
+(fail) supersession cross-run refuses before journal publication [43.26ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-KliuX9/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-KliuX9/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +1ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-KliuX9/project disposing instance
+(fail) supersession cross-contract refuses before journal publication [39.91ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-yH4IdE/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-yH4IdE/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +0ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-yH4IdE/project disposing instance
+(fail) supersession incomplete-old refuses before journal publication [39.54ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RvRasz/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RvRasz/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-RvRasz/project disposing instance
+(fail) supersession incomplete-new refuses before journal publication [39.63ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-8XvGNM/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-8XvGNM/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +1ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-8XvGNM/project disposing instance
+(fail) supersession missing-successor refuses before journal publication [40.90ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ayIQSO/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ayIQSO/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-ayIQSO/project disposing instance
+(fail) supersession approved-successor refuses before journal publication [40.51ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DHpyKE/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DHpyKE/project fromDirectory
+INFO  2026-10-04T13:53:27 +22ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:86:43)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-DHpyKE/project disposing instance
+(fail) supersession ordinary-old refuses before journal publication [47.24ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-6wbej4/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-6wbej4/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-6wbej4/project disposing instance
+(fail) supersession wrong-decision refuses before journal publication [41.30ms]
+INFO  2026-10-04T13:53:27 +27ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xLJ6HT/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xLJ6HT/project fromDirectory
+INFO  2026-10-04T13:53:27 +16ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +0ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-xLJ6HT/project disposing instance
+(fail) supersession stale-successor refuses before journal publication [46.28ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +1ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-fXvGSl/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-fXvGSl/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-fXvGSl/project disposing instance
+(fail) supersession cyclic refuses before journal publication [40.69ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u96f94/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u96f94/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-u96f94/project disposing instance
+(fail) supersession published refuses before journal publication [40.27ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-A4xJDK/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-A4xJDK/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +0ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-A4xJDK/project disposing instance
+(fail) supersession activated refuses before journal publication [41.45ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wlZQLb/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wlZQLb/project fromDirectory
+INFO  2026-10-04T13:53:27 +16ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +1ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-wlZQLb/project disposing instance
+(fail) supersession started refuses before journal publication [41.20ms]
+INFO  2026-10-04T13:53:27 +24ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-rii3CG/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-rii3CG/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:87:16)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-rii3CG/project disposing instance
+(fail) supersession malformed refuses before journal publication [42.41ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-IHS4oQ/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-IHS4oQ/project fromDirectory
+INFO  2026-10-04T13:53:27 +15ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +0ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:118:9)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-IHS4oQ/project disposing instance
+(fail) historical expiry without explicit proof remains blocking, including unrelated requests [40.63ms]
+INFO  2026-10-04T13:53:27 +22ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LRNHtC/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LRNHtC/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +2ms service=event-transitions runId=ses_supersession contractId=contract_supersession verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_supersession seq=1 type=execution_queued appended event
+1122 |  */
+1123 | export function parseRunEventLog(runId: string, events: unknown[]): RunEventEnvelope[] {
+1124 |   const parsed = events.map((event, index) => {
+1125 |     const result = RunEventEnvelopeSchema.safeParse(event)
+1126 |     if (!result.success) {
+1127 |       throw new Error(
+                       ^
+error: Run ses_supersession has a malformed event at position 0: payload.risk Invalid input: expected string, received undefined. Refusing to project an unreadable log.
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1127:17)
+      at map (1:11)
+      at parseRunEventLog (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-types.ts:1124:25)
+      at parse (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:68:22)
+      at appendBatchUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:101:40)
+      at appendUnderLock (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:74:33)
+      at appendAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/journal.ts:134:25)
+      at async appendRunEventAtTail (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/run-event-store.ts:166:50)
+      at async appendEventOnly (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/state/events/event-transitions.ts:100:9)
+      at async <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/conformance/grant-supersession.test.ts:128:9)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-LRNHtC/project disposing instance
+(fail) invalid second event in batch publishes neither request nor resolution [39.92ms]
+INFO  2026-10-04T13:53:27 +23ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project creating instance
+INFO  2026-10-04T13:53:27 +0ms service=project directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project fromDirectory
+INFO  2026-10-04T13:53:27 +14ms service=storage index=0 running migration
+INFO  2026-10-04T13:53:27 +0ms service=storage index=1 running migration
+INFO  2026-10-04T13:53:27 +5ms service=event-transitions runId=ses_ef8cf1874ffeaOJvjSyHdbP6A4 contractId=ctr_ses_10730e78c001TDOhTfP69CMAWu verificationRequired=false created event-authority run
+INFO  2026-10-04T13:53:27 +1ms service=event-store runId=ses_ef8cf1874ffeaOJvjSyHdbP6A4 seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:53:27 +0ms service=event-transitions runId=ses_ef8cf1874ffeaOJvjSyHdbP6A4 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:53:27 +1ms service=session id=ses_ef8cf1874ffeaOJvjSyHdbP6A4 slug=gentle-wizard version=local projectID=global directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project governingRunId=ses_ef8cf1874ffeaOJvjSyHdbP6A4 title=Inspect source. time={"created":1791122007953,"updated":1791122007953} created
+INFO  2026-10-04T13:53:27 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:53:27 +2ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/.config/dax/config.json loading
+INFO  2026-10-04T13:53:27 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/.config/dax/dax.json loading
+INFO  2026-10-04T13:53:27 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/.config/dax/dax.jsonc loading
+INFO  2026-10-04T13:53:27 +3ms service=bus type=session.updated publishing
+244 |     }
+245 |     const matches = await Config.directories().then((dirs) =>
+246 |       dirs.flatMap((dir) =>
+247 |         project.directories.includes(dir) && !projectAllowed
+248 |           ? []
+249 |           : [...glob.scanSync({ cwd: dir, absolute: true, followSymlinks: true, dot: true })],
+                ^
+ENOENT: no such file or directory, open '/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/.config/dax'
+    path: "/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/.config/dax",
+ syscall: "open",
+   errno: -2,
+    code: "ENOENT"
+
+      at <anonymous> (/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/src/tool/registry.ts:249:22)
+INFO  2026-10-04T13:53:27 +1ms service=default disposing all instances
+INFO  2026-10-04T13:53:27 +0ms service=default directory=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project disposing instance
+INFO  2026-10-04T13:53:27 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project waiting for state disposal to complete
+INFO  2026-10-04T13:53:27 +0ms service=state key=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-supersession-vDExCY/project state disposal completed
+(fail) two interrupted private revisions recover every canonical pending request with skipped revisions [50.82ms]
+
+ 0 pass
+ 20 fail
+ 20 expect() calls
+Ran 20 tests across 1 file. [1473.00ms]

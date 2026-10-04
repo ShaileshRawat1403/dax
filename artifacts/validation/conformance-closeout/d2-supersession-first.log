@@ -1,0 +1,6 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/dax/src/conformance/grant-supersession.test.ts:
+error: Cannot read file "/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax": EMFILE
+
+error: Cannot read file "/Users/ananyalayek/.codex/worktrees/conformance-closeout/dax/packages/dax/tsconfig.json": EMFILE

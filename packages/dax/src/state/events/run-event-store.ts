@@ -51,7 +51,7 @@ export class InvalidRunAuthorityError extends Error {
   }
 }
 
-type NewRunEvent = Omit<
+export type NewRunEvent = Omit<
   RunEventEnvelope,
   "eventId" | "runId" | "seq" | "occurredAt" | "schemaVersion" | "scopeType" | "scopeId"
 >
@@ -166,6 +166,21 @@ export async function appendRunEventAtTail(
   const result = await (await runJournal(runId)).appendAtTail(event, options)
   log.info("appended event", { runId, seq: result.seq, type: result.type })
   return result
+}
+
+/** Build and atomically publish a validated batch under the one event-owner lock. */
+export async function appendRunEventBatchAtTail(
+  runId: string,
+  create: (existing: RunEventEnvelope[]) => NewRunEvent[],
+): Promise<RunEventEnvelope[]> {
+  const journal = await runJournal(runId)
+  const lock = await acquireRunLock(runId)
+  try {
+    const events = await journal.read()
+    return await journal.appendBatchUnderLock(events.length, create(events), events, { rejectDuplicateCommand: true })
+  } finally {
+    await lock.dispose()
+  }
 }
 
 /**

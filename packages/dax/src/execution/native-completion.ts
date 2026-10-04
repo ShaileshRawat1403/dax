@@ -1,3 +1,5 @@
+import { loadReviewedAuthority } from "@/capability/reviewed-authority"
+import { supersededReviewApprovals } from "@/state/events/grant-review-supersession"
 import { Session } from "@/session"
 import { MessageV2 } from "@/session/message-v2"
 import { resolveExecutionAuthority } from "./contract-guardian"
@@ -30,9 +32,12 @@ function invocationRejectionReasons(invocations: CanonicalRunState["invocations"
   })
 }
 
-function approvalRejectionReasons(approvals: CanonicalRunState["approvals"]): string[] {
+function approvalRejectionReasons(
+  approvals: CanonicalRunState["approvals"],
+  superseded: ReadonlySet<string>,
+): string[] {
   return approvals.flatMap((approval) => {
-    if (approval.status === "approved") return []
+    if (approval.status === "approved" || superseded.has(approval.approvalId)) return []
     if (approval.status === "pending") return [`approval_pending:${approval.approvalId}`]
     return [`approval_not_approved:${approval.status}:${approval.approvalId}`]
   })
@@ -163,9 +168,13 @@ export async function adjudicateNativeCompletionCandidate(input: {
     }
   }
 
+  const reviewed = authority.contract.schemaVersion === "v2" ? await loadReviewedAuthority(runId) : undefined
+  const superseded = reviewed
+    ? supersededReviewApprovals(reviewed.state, reviewed.published.approvalId)
+    : new Set<string>()
   const authorityReasons = [
     ...invocationRejectionReasons(state.invocations),
-    ...approvalRejectionReasons(state.approvals),
+    ...approvalRejectionReasons(state.approvals, superseded),
   ]
   if (authorityReasons.length > 0) {
     return { candidate: true, accepted: false, runId, reasonCodes: authorityReasons }

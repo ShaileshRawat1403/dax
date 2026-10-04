@@ -2,6 +2,7 @@ import { INVOCATION_PATHS } from "@/capability/authority-paths"
 import { mcpCapability } from "@/capability/dynamic-identity"
 import { mcpServerCommitment, parseMcpReadV2 } from "@/mcp/resource-identity"
 import {
+  ContractGrantApprovalSubjectSchema,
   CONTRACT_GRANT_APPROVAL_TYPE,
   CONTRACT_GRANT_ASK_TYPE,
   type ContractGrantApprovalSubject,
@@ -295,6 +296,8 @@ export type ApprovalRecord = {
   decidedBy: string | null
   decidedAt: string | null
   comment: string | null
+  /** Explicit canonical pre-start replacement proof, absent on historical resolutions. */
+  supersededByApprovalId?: string
 }
 
 export type StepRecord = {
@@ -1914,6 +1917,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           actor?: string | null
           comment?: string
           resolvedAt?: string
+          supersededByApprovalId?: string
         }
         const record = state.approvals.find((approval) => approval.approvalId === payload.approvalId)
         if (!record) {
@@ -1921,6 +1925,42 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         if (record.status !== "pending") {
           throw new Error(`Approval already resolved: ${payload.approvalId}`)
+        }
+        if (payload.supersededByApprovalId !== undefined) {
+          const successor = state.approvals.find((item) => item.approvalId === payload.supersededByApprovalId)
+          const oldSubject = state.grantReview.requests[record.approvalId]
+          const newSubject = successor && state.grantReview.requests[successor.approvalId]
+          const complete = (subject: ContractGrantApprovalSubject | undefined) =>
+            subject &&
+            ContractGrantApprovalSubjectSchema.safeParse(subject).success &&
+            subject.runId === state.runId &&
+            subject.contractId === state.contractId &&
+            subject.contractDigest !== undefined &&
+            subject.bindings !== undefined &&
+            new Set(subject.bindings.map((item) => item.subject)).size === subject.bindings.length &&
+            subject.bindings.every(
+              (item) =>
+                item.decision !== undefined &&
+                (item.agents === undefined ||
+                  (item.agents.length > 0 && new Set(item.agents).size === item.agents.length)),
+            )
+          if (
+            payload.decision !== "expired" ||
+            record.approvalType !== CONTRACT_GRANT_APPROVAL_TYPE ||
+            successor?.approvalType !== CONTRACT_GRANT_APPROVAL_TYPE ||
+            successor.status !== "pending" ||
+            !complete(oldSubject) ||
+            !complete(newSubject) ||
+            newSubject!.revision <= oldSubject!.revision ||
+            Object.values(state.grantReview.requests).some((subject) => subject.revision > newSubject!.revision) ||
+            Object.values(state.grantReview.requests).filter((subject) => subject.revision === newSubject!.revision)
+              .length !== 1 ||
+            state.startedAt !== null ||
+            state.grantReview.published ||
+            state.grantReview.activated
+          )
+            throw new Error(`Invalid grant review supersession: ${record.approvalId}`)
+          record.supersededByApprovalId = successor!.approvalId
         }
         // A grant ask answered after its deadline is not an approval of it.
         const deadline = state.grantReview.askDeadlines[payload.approvalId]

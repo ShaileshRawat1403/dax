@@ -1,0 +1,2 @@
+$ bun run --cwd packages/dax typecheck
+$ tsc --noEmit

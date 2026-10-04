@@ -1,0 +1,945 @@
+{"variant":"first","controls":["api-preflight-no-session-authority-provider","api-complete-stale-pins-no-append","api-grant-actor-remember-validation-before-append","api-server-produced-revision-fresh-approval","api-grant-approval-no-workflow-resume","api-activated-queued-all-session-entries-no-effects","api-r2-completion-canonical-supersession","api-genuine-start-at-most-one-dispatch","api-r3-completion-multi-revision-proof","api-non-superseded-approvals-block-before-artifacts","api-neutral-intent-explicit-roots-consequential-grants-disclosed","api-denied-review-readable-no-start","api-cross-process-one-initial-model-dispatch","api-activated-unstarted-waiting-no-dispatch-effects","api-claim-before-dispatch-never-retried","api-publication-proof-crash-roll-forward","api-ask-remember-validation-routing-no-workflow-resume","api-wrong-approval-type-remember-no-append","api-successor-fresh-authority-no-copy"],"providerCalls":27}
+
+INFO  2026-10-04T13:58:53 +42ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:53 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+INFO  2026-10-04T13:58:53 +55ms service=event-transitions runId=ses_ef8ca228bffecRAGEJCyaNGxSq contractId=ctr_ses_10735dd74002nDbaZZjGcSfK9K verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:53 +0ms service=event-transitions runId=ses_ef8ca228bffecRAGEJCyaNGxSq status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:53 +1ms service=session id=ses_ef8ca228bffecRAGEJCyaNGxSq slug=stellar-island version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca228bffecRAGEJCyaNGxSq title=Inspect the repository, read only. time={"created":1791122333063,"updated":1791122333063} created
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:53 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/config.json loading
+INFO  2026-10-04T13:58:53 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.json loading
+INFO  2026-10-04T13:58:53 +3ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.jsonc loading
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:53 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:53 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:53 +5ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +3ms service=secrets-loader Infisical not configured - falling back to environment secrets
+INFO  2026-10-04T13:58:53 +0ms service=nats-transport NATS transport disabled - set DAX_NATS_ENABLED=true to enable
+INFO  2026-10-04T13:58:53 +0ms service=bus type=* subscribing
+INFO  2026-10-04T13:58:53 +25ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=5 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +0ms service=approval-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq approvalId=apr_grant_ses_ef8ca228bffecRAGEJCyaNGxSq_r2 approval added
+INFO  2026-10-04T13:58:53 +1ms service=approval-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq approvalId=apr_grant_ses_ef8ca228bffecRAGEJCyaNGxSq_r2 decision=approve approval resolved
+INFO  2026-10-04T13:58:53 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:53 +1ms service=approval-transitions runId=ses_ef8ca228bffecRAGEJCyaNGxSq approvalId=apr_grant_ses_ef8ca228bffecRAGEJCyaNGxSq_r2 actorId=fixture-operator approval approved
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=6 type=grant_review_published appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=7 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:53 +26ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=8 type=execution_started appended event
+INFO  2026-10-04T13:58:53 +16ms service=provider status=started state
+INFO  2026-10-04T13:58:53 +0ms service=provider init
+INFO  2026-10-04T13:58:53 +1ms service=provider providerID=stage4d found
+INFO  2026-10-04T13:58:53 +0ms service=provider status=completed duration=1 state
+INFO  2026-10-04T13:58:53 +1ms service=provider status=started providerID=stage4d getSDK
+INFO  2026-10-04T13:58:53 +0ms service=provider providerID=stage4d pkg=@ai-sdk/openai-compatible using bundled provider
+INFO  2026-10-04T13:58:53 +0ms service=provider status=completed duration=0 providerID=stage4d getSDK
+model request 1 [ "user" ]
+INFO  2026-10-04T13:58:53 +5ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +4ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt step=0 sessionID=ses_ef8ca228bffecRAGEJCyaNGxSq loop
+INFO  2026-10-04T13:58:53 +10ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:53 +2ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:53 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:53 +1ms service=tool.registry status=completed duration=1 task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=completed duration=3 resolveTools
+INFO  2026-10-04T13:58:53 +2ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +1ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca228bffecRAGEJCyaNGxSq small=true agent=title mode=primary stream
+model request 2 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +5ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +6ms service=vcs branch=HEAD initialized
+INFO  2026-10-04T13:58:53 +0ms service=bus type=file.watcher.updated subscribing
+INFO  2026-10-04T13:58:53 +2ms service=session.processor process
+INFO  2026-10-04T13:58:53 +5ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=9 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=10 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca228bffecRAGEJCyaNGxSq small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=11 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:53 +4ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=12 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=13 type=context_recording_started appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=14 type=context_contribution_recorded appended event
+model request 3 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +33ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +42ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +13ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=15 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +10ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=16 type=artifact_created appended event
+INFO  2026-10-04T13:58:53 +11ms service=event-store runId=ses_ef8ca228bffecRAGEJCyaNGxSq seq=17 type=run_completed appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-transitions runId=ses_ef8ca228bffecRAGEJCyaNGxSq status=completed eventType=run_completed seq=17 event-authority transition
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt candidate=true accepted=true runId=ses_ef8ca228bffecRAGEJCyaNGxSq reasonCodes=[] native completion candidate adjudicated
+INFO  2026-10-04T13:58:53 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:53 +1ms service=session.prompt sessionID=ses_ef8ca228bffecRAGEJCyaNGxSq cancel
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +2ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:53 +4ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +6ms service=event-transitions runId=ses_ef8ca2140ffeFtvBvTTFBelUfS contractId=ctr_ses_10735debf002EHW92JMcSdCs8Q verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:53 +0ms service=event-transitions runId=ses_ef8ca2140ffeFtvBvTTFBelUfS status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:53 +0ms service=session id=ses_ef8ca2140ffeFtvBvTTFBelUfS slug=playful-eagle version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca2140ffeFtvBvTTFBelUfS title=Inspect the repository, read only. time={"created":1791122333377,"updated":1791122333377} created
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +10ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=7 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +0ms service=approval-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS approvalId=apr_grant_ses_ef8ca2140ffeFtvBvTTFBelUfS_r3 approval added
+INFO  2026-10-04T13:58:53 +0ms service=approval-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS approvalId=apr_grant_ses_ef8ca2140ffeFtvBvTTFBelUfS_r3 decision=approve approval resolved
+INFO  2026-10-04T13:58:53 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:53 +0ms service=approval-transitions runId=ses_ef8ca2140ffeFtvBvTTFBelUfS approvalId=apr_grant_ses_ef8ca2140ffeFtvBvTTFBelUfS_r3 actorId=fixture-operator approval approved
+INFO  2026-10-04T13:58:53 +4ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=8 type=grant_review_published appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=9 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=10 type=execution_started appended event
+model request 4 [ "user" ]
+INFO  2026-10-04T13:58:53 +11ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt step=0 sessionID=ses_ef8ca2140ffeFtvBvTTFBelUfS loop
+INFO  2026-10-04T13:58:53 +6ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:53 +2ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:53 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:53 +1ms service=session.prompt status=completed duration=3 resolveTools
+INFO  2026-10-04T13:58:53 +0ms service=session.processor process
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca2140ffeFtvBvTTFBelUfS small=true agent=title mode=primary stream
+model request 5 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=11 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=12 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca2140ffeFtvBvTTFBelUfS small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=13 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=14 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=15 type=context_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=16 type=context_contribution_recorded appended event
+model request 6 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +35ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +43ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +4ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=17 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +14ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=18 type=artifact_created appended event
+INFO  2026-10-04T13:58:53 +10ms service=event-store runId=ses_ef8ca2140ffeFtvBvTTFBelUfS seq=19 type=run_completed appended event
+INFO  2026-10-04T13:58:53 +0ms service=event-transitions runId=ses_ef8ca2140ffeFtvBvTTFBelUfS status=completed eventType=run_completed seq=19 event-authority transition
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt candidate=true accepted=true runId=ses_ef8ca2140ffeFtvBvTTFBelUfS reasonCodes=[] native completion candidate adjudicated
+INFO  2026-10-04T13:58:53 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:53 +1ms service=session.prompt sessionID=ses_ef8ca2140ffeFtvBvTTFBelUfS cancel
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +1ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:53 +7ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +17ms service=event-transitions runId=ses_ef8ca2062ffeX6hIBvAJVprk68 contractId=ctr_ses_10735df9d0021wA6SPSaflP53e verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:53 +0ms service=event-transitions runId=ses_ef8ca2062ffeX6hIBvAJVprk68 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:53 +1ms service=session id=ses_ef8ca2062ffeX6hIBvAJVprk68 slug=shiny-panda version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca2062ffeX6hIBvAJVprk68 title=Inspect the repository, read only. time={"created":1791122333600,"updated":1791122333600} created
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:53 +4ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=6 type=execution_started appended event
+model request 7 [ "user" ]
+INFO  2026-10-04T13:58:53 +7ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt step=0 sessionID=ses_ef8ca2062ffeX6hIBvAJVprk68 loop
+INFO  2026-10-04T13:58:53 +5ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:53 +1ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:53 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:53 +1ms service=session.prompt status=completed duration=2 resolveTools
+INFO  2026-10-04T13:58:53 +0ms service=session.processor process
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca2062ffeX6hIBvAJVprk68 small=true agent=title mode=primary stream
+model request 8 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca2062ffeX6hIBvAJVprk68 small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=12 type=context_contribution_recorded appended event
+model request 9 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +29ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +44ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +1ms service=session.compaction pruning
+INFO  2026-10-04T13:58:53 +2ms service=session.prompt sessionID=ses_ef8ca2062ffeX6hIBvAJVprk68 cancel
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:53 +17ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=14 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca2062ffeX6hIBvAJVprk68 seq=15 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +10ms service=event-transitions runId=ses_ef8ca1fadffeswcEcF6UO0g90G contractId=ctr_ses_10735e052002y1OW75dyZnWuRx verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:53 +0ms service=event-transitions runId=ses_ef8ca1fadffeswcEcF6UO0g90G status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:53 +1ms service=session id=ses_ef8ca1fadffeswcEcF6UO0g90G slug=cosmic-meadow version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1fadffeswcEcF6UO0g90G title=Inspect the repository, read only. time={"created":1791122333781,"updated":1791122333781} created
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +0ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=6 type=execution_started appended event
+model request 10 [ "user" ]
+INFO  2026-10-04T13:58:53 +7ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1fadffeswcEcF6UO0g90G loop
+INFO  2026-10-04T13:58:53 +6ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:53 +2ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:53 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=completed duration=2 resolveTools
+INFO  2026-10-04T13:58:53 +1ms service=session.processor process
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1fadffeswcEcF6UO0g90G small=true agent=title mode=primary stream
+model request 11 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1fadffeswcEcF6UO0g90G small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=12 type=context_contribution_recorded appended event
+model request 12 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +30ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +42ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +1ms service=session.compaction pruning
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt sessionID=ses_ef8ca1fadffeswcEcF6UO0g90G cancel
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +1ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=14 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1fadffeswcEcF6UO0g90G seq=15 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +9ms service=event-transitions runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D contractId=ctr_ses_10735e0f40020YSUTGRd6hG3Qf verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:53 +0ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-transitions runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:53 +1ms service=session id=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D slug=playful-wizard version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D title=Inspect the repository, read only. time={"created":1791122333944,"updated":1791122333944} created
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:53 +3ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:53 +5ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=6 type=execution_started appended event
+INFO  2026-10-04T13:58:53 +2ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+model request 13 [ "user" ]
+INFO  2026-10-04T13:58:53 +6ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D loop
+INFO  2026-10-04T13:58:53 +6ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:53 +1ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:53 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:53 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:53 +1ms service=session.prompt status=completed duration=2 resolveTools
+INFO  2026-10-04T13:58:53 +0ms service=session.processor process
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:53 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D small=true agent=title mode=primary stream
+model request 14 [ "system", "user" ]
+INFO  2026-10-04T13:58:53 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:53 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:53 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:53 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:53 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:53 +1ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=12 type=context_contribution_recorded appended event
+model request 15 [ "system", "user" ]
+INFO  2026-10-04T13:58:54 +29ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +27ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +42ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:54 +1ms service=session.prompt sessionID=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D cancel
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +1ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=14 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1f0bffeDzS3fYF8Ynxx9D seq=15 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +11ms service=event-transitions runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM contractId=ctr_ses_10735e19a002eJ9FcZNvEIykm3 verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:54 +0ms service=event-transitions runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:54 +0ms service=session id=ses_ef8ca1e65ffeDjgjSYOSIxa6DM slug=kind-island version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM title=Inspect the repository, read only. time={"created":1791122334108,"updated":1791122334108} created
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:54 +3ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=6 type=execution_started appended event
+model request 16 [ "user" ]
+INFO  2026-10-04T13:58:54 +7ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1e65ffeDjgjSYOSIxa6DM loop
+INFO  2026-10-04T13:58:54 +5ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:54 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:54 +1ms service=tool.registry status=completed duration=1 shell
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt status=completed duration=1 resolveTools
+INFO  2026-10-04T13:58:54 +0ms service=session.processor process
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:54 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1e65ffeDjgjSYOSIxa6DM small=true agent=title mode=primary stream
+model request 17 [ "system", "user" ]
+INFO  2026-10-04T13:58:54 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:54 +0ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +1ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1e65ffeDjgjSYOSIxa6DM small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=12 type=context_contribution_recorded appended event
+model request 18 [ "system", "user" ]
+INFO  2026-10-04T13:58:54 +36ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +46ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +42ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +1ms service=session.compaction pruning
+INFO  2026-10-04T13:58:54 +1ms service=session.prompt sessionID=ses_ef8ca1e65ffeDjgjSYOSIxa6DM cancel
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +1ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1e65ffeDjgjSYOSIxa6DM seq=14 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +8ms service=event-transitions runId=ses_ef8ca1dacffexmhjcu1bZsXv6t contractId=ctr_ses_10735e253002TawUz7xC6U1Y2N verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:54 +0ms service=event-transitions runId=ses_ef8ca1dacffexmhjcu1bZsXv6t status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:54 +1ms service=session id=ses_ef8ca1dacffexmhjcu1bZsXv6t slug=clever-island version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1dacffexmhjcu1bZsXv6t title=Inspect the repository, read only. time={"created":1791122334294,"updated":1791122334294} created
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=5 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=6 type=grant_review_published appended event
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=7 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:54 +5ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=8 type=execution_started appended event
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.diff publishing
+model request 19 [ "user" ]
+INFO  2026-10-04T13:58:54 +6ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1dacffexmhjcu1bZsXv6t loop
+INFO  2026-10-04T13:58:54 +6ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:54 +1ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:54 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt status=completed duration=1 resolveTools
+INFO  2026-10-04T13:58:54 +0ms service=session.processor process
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1dacffexmhjcu1bZsXv6t small=true agent=title mode=primary stream
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.diff publishing
+model request 20 [ "system", "user" ]
+INFO  2026-10-04T13:58:54 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=9 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=10 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1dacffexmhjcu1bZsXv6t small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=11 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=12 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=13 type=context_recording_started appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=14 type=context_contribution_recorded appended event
+model request 21 [ "system", "user" ]
+INFO  2026-10-04T13:58:54 +31ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +40ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1dacffexmhjcu1bZsXv6t seq=15 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:54 +1ms service=session.prompt sessionID=ses_ef8ca1dacffexmhjcu1bZsXv6t cancel
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:54 +8ms service=event-transitions runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 contractId=ctr_ses_10735e2f2002pwFSWThQxc5NMF verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:54 +1ms service=event-transitions runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:54 +1ms service=session id=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 slug=lucky-island version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 title=Consider this workspace time={"created":1791122334455,"updated":1791122334455} created
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +4ms service=event-transitions runId=ses_ef8ca1d02ffebYRs1SabXLOtta contractId=ctr_ses_10735e2fd002w9Sr4UwgZ8oGEB verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1d02ffebYRs1SabXLOtta seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:54 +0ms service=event-transitions runId=ses_ef8ca1d02ffebYRs1SabXLOtta status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:54 +1ms service=session id=ses_ef8ca1d02ffebYRs1SabXLOtta slug=crisp-comet version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1d02ffebYRs1SabXLOtta title=Inspect the repository, read only. time={"created":1791122334464,"updated":1791122334464} created
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1d02ffebYRs1SabXLOtta seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1d02ffebYRs1SabXLOtta seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +0ms service=approval-store runId=ses_ef8ca1d02ffebYRs1SabXLOtta approvalId=apr_grant_ses_ef8ca1d02ffebYRs1SabXLOtta_r1 approval added
+INFO  2026-10-04T13:58:54 +0ms service=approval-store runId=ses_ef8ca1d02ffebYRs1SabXLOtta approvalId=apr_grant_ses_ef8ca1d02ffebYRs1SabXLOtta_r1 decision=deny approval resolved
+INFO  2026-10-04T13:58:54 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:54 +0ms service=approval-transitions runId=ses_ef8ca1d02ffebYRs1SabXLOtta approvalId=apr_grant_ses_ef8ca1d02ffebYRs1SabXLOtta_r1 actorId=fixture approval denied
+INFO  2026-10-04T13:58:54 +4ms service=event-transitions runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n contractId=ctr_ses_10735e307002vmEuJvDl2q6XTO verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:54 +1ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:54 +0ms service=event-transitions runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:54 +0ms service=session id=ses_ef8ca1cf8ffeM2i2IL4srdc23n slug=mighty-harbor version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1cf8ffeM2i2IL4srdc23n title=Inspect the repository, read only. time={"created":1791122334473,"updated":1791122334473} created
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:54 +0ms service=approval-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n approvalId=apr_grant_ses_ef8ca1cf8ffeM2i2IL4srdc23n_r1 approval added
+INFO  2026-10-04T13:58:54 +0ms service=approval-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n approvalId=apr_grant_ses_ef8ca1cf8ffeM2i2IL4srdc23n_r1 decision=approve approval resolved
+INFO  2026-10-04T13:58:54 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:54 +0ms service=approval-transitions runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n approvalId=apr_grant_ses_ef8ca1cf8ffeM2i2IL4srdc23n_r1 actorId=fixture approval approved
+model request 22 [ "user" ]
+model request 23 [ "system", "user" ]
+cross-process child {"variant":"first","controls":["api-cross-process-start-409"],"providerCalls":0} INFO  2026-10-04T13:58:54 +42ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:54 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+INFO  2026-10-04T13:58:54 +154ms service=default disposing all instances
+INFO  2026-10-04T13:58:54 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance
+
+model request 24 [ "system", "user" ]
+cross-process child {"variant":"first","controls":["api-cross-process-start-200"],"providerCalls":0} INFO  2026-10-04T13:58:54 +40ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:54 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+INFO  2026-10-04T13:58:54 +52ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/config.json loading
+INFO  2026-10-04T13:58:54 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.json loading
+INFO  2026-10-04T13:58:54 +3ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.jsonc loading
+INFO  2026-10-04T13:58:54 +4ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:54 +1ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:54 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=6 type=execution_started appended event
+INFO  2026-10-04T13:58:54 +17ms service=provider status=started state
+INFO  2026-10-04T13:58:54 +0ms service=provider init
+INFO  2026-10-04T13:58:54 +1ms service=provider providerID=stage4d found
+INFO  2026-10-04T13:58:54 +0ms service=provider status=completed duration=1 state
+INFO  2026-10-04T13:58:54 +0ms service=provider status=started providerID=stage4d getSDK
+INFO  2026-10-04T13:58:54 +1ms service=provider providerID=stage4d pkg=@ai-sdk/openai-compatible using bundled provider
+INFO  2026-10-04T13:58:54 +0ms service=provider status=completed duration=1 providerID=stage4d getSDK
+INFO  2026-10-04T13:58:54 +5ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +3ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +5ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1cf8ffeM2i2IL4srdc23n loop
+INFO  2026-10-04T13:58:54 +9ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:54 +1ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:54 +1ms service=tool.registry status=completed duration=1 invalid
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:54 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:54 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:54 +1ms service=session.prompt status=completed duration=3 resolveTools
+INFO  2026-10-04T13:58:54 +2ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1cf8ffeM2i2IL4srdc23n small=true agent=title mode=primary stream
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:54 +5ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:54 +7ms service=vcs branch=HEAD initialized
+INFO  2026-10-04T13:58:54 +0ms service=bus type=file.watcher.updated subscribing
+INFO  2026-10-04T13:58:54 +3ms service=session.processor process
+INFO  2026-10-04T13:58:54 +5ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:54 +2ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:54 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1cf8ffeM2i2IL4srdc23n small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:54 +3ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:54 +3ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:54 +5ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:54 +4ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=12 type=context_contribution_recorded appended event
+INFO  2026-10-04T13:58:54 +31ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +29ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:54 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:54 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +43ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +6ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:55 +10ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=14 type=artifact_created appended event
+INFO  2026-10-04T13:58:55 +24ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:55 +4ms service=event-store runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n seq=15 type=run_completed appended event
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n status=completed eventType=run_completed seq=15 event-authority transition
+INFO  2026-10-04T13:58:55 +1ms service=session.prompt candidate=true accepted=true runId=ses_ef8ca1cf8ffeM2i2IL4srdc23n reasonCodes=[] native completion candidate adjudicated
+INFO  2026-10-04T13:58:55 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:55 +0ms service=session.prompt sessionID=ses_ef8ca1cf8ffeM2i2IL4srdc23n cancel
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:55 +0ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:55 +13ms service=default disposing all instances
+INFO  2026-10-04T13:58:55 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance
+INFO  2026-10-04T13:58:55 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project waiting for state disposal to complete
+INFO  2026-10-04T13:58:55 +0ms service=bus type=file.watcher.updated unsubscribing
+INFO  2026-10-04T13:58:55 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project state disposal completed
+
+INFO  2026-10-04T13:58:55 +614ms service=event-transitions runId=ses_ef8ca1a8bffeGuy1W9oqja7nea contractId=ctr_ses_10735e574002UoSo75lOhMthlL verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1a8bffeGuy1W9oqja7nea status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:55 +0ms service=session id=ses_ef8ca1a8bffeGuy1W9oqja7nea slug=eager-island version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1a8bffeGuy1W9oqja7nea title=Inspect the repository, read only. time={"created":1791122335094,"updated":1791122335094} created
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea approvalId=apr_grant_ses_ef8ca1a8bffeGuy1W9oqja7nea_r1 approval added
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea approvalId=apr_grant_ses_ef8ca1a8bffeGuy1W9oqja7nea_r1 decision=approve approval resolved
+INFO  2026-10-04T13:58:55 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:55 +0ms service=approval-transitions runId=ses_ef8ca1a8bffeGuy1W9oqja7nea approvalId=apr_grant_ses_ef8ca1a8bffeGuy1W9oqja7nea_r1 actorId=fixture approval approved
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a8bffeGuy1W9oqja7nea seq=6 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +8ms service=event-transitions runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl contractId=ctr_ses_10735e588002qH5qiCGZJhiLGe verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:55 +0ms service=session id=ses_ef8ca1a77ffeLeyCVLUzatq9jl slug=crisp-squid version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1a77ffeLeyCVLUzatq9jl title=Inspect the repository, read only. time={"created":1791122335114,"updated":1791122335114} created
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:55 +1ms service=approval-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl approvalId=apr_grant_ses_ef8ca1a77ffeLeyCVLUzatq9jl_r1 approval added
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl approvalId=apr_grant_ses_ef8ca1a77ffeLeyCVLUzatq9jl_r1 decision=approve approval resolved
+INFO  2026-10-04T13:58:55 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:55 +0ms service=approval-transitions runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl approvalId=apr_grant_ses_ef8ca1a77ffeLeyCVLUzatq9jl_r1 actorId=fixture approval approved
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a77ffeLeyCVLUzatq9jl seq=6 type=execution_started appended event
+INFO  2026-10-04T13:58:55 +3ms service=event-transitions runId=ses_ef8ca1a68ffek4YKDwU6nclcNK contractId=ctr_ses_10735e597002gKLZlPFlHl7flR verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:55 +0ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1a68ffek4YKDwU6nclcNK status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:55 +1ms service=session id=ses_ef8ca1a68ffek4YKDwU6nclcNK slug=crisp-harbor version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1a68ffek4YKDwU6nclcNK title=Inspect the repository, read only. time={"created":1791122335129,"updated":1791122335129} created
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=3 type=approval_resolved appended event
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK approvalId=apr_grant_ses_ef8ca1a68ffek4YKDwU6nclcNK_r1 approval added
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK approvalId=apr_grant_ses_ef8ca1a68ffek4YKDwU6nclcNK_r1 decision=approve approval resolved
+INFO  2026-10-04T13:58:55 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:55 +0ms service=approval-transitions runId=ses_ef8ca1a68ffek4YKDwU6nclcNK approvalId=apr_grant_ses_ef8ca1a68ffek4YKDwU6nclcNK_r1 actorId=fixture approval approved
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=4 type=grant_review_published appended event
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=6 type=execution_started appended event
+INFO  2026-10-04T13:58:55 +6ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=5 type=approval_resolved appended event
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=apr_grant_ses_ef8ca1d0dffeLT2Kv6SzbBlgj9_r2 approval added
+INFO  2026-10-04T13:58:55 +1ms service=approval-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=apr_grant_ses_ef8ca1d0dffeLT2Kv6SzbBlgj9_r2 decision=approve approval resolved
+INFO  2026-10-04T13:58:55 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:55 +0ms service=approval-transitions runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=apr_grant_ses_ef8ca1d0dffeLT2Kv6SzbBlgj9_r2 actorId=fixture approval approved
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=6 type=grant_review_published appended event
+model request 25 [ "user" ]
+INFO  2026-10-04T13:58:55 +6ms service=bus type=intent.created publishing
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +2ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=7 type=grant_review_activated appended event
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=8 type=execution_started appended event
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:55 +0ms service=session.prompt step=0 sessionID=ses_ef8ca1a68ffek4YKDwU6nclcNK loop
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=9 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +3ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=10 type=approval_resolved appended event
+INFO  2026-10-04T13:58:55 +0ms service=approval-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=api_fixture_ask approval added
+INFO  2026-10-04T13:58:55 +1ms service=approval-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=api_fixture_ask decision=approve approval resolved
+INFO  2026-10-04T13:58:55 +0ms service=bus type=approval.resolved publishing
+INFO  2026-10-04T13:58:55 +0ms service=approval-transitions runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 approvalId=api_fixture_ask actorId=fixture approval approved
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=11 type=grant_ask_remembered appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1d0dffeLT2Kv6SzbBlgj9 seq=12 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +2ms service=session id=ses_ef8ca1a3affeZas7YKN0fv6fO6 slug=crisp-pixel version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project title=Legacy consequential session time={"created":1791122335173,"updated":1791122335173} created
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +2ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1a3affdfhD1OGaW9cmGN3 contractId=ctr_ses_10735e5c5003eqO2OE70qL1JwC verificationRequired=false created event-authority run
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a3affdfhD1OGaW9cmGN3 seq=1 type=execution_queued appended event
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:55 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 skill
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:55 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:55 +0ms service=session.prompt status=completed duration=1 resolveTools
+INFO  2026-10-04T13:58:55 +1ms service=event-transitions runId=ses_ef8ca1a3affdfhD1OGaW9cmGN3 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T13:58:55 +0ms service=session.processor process
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=session id=ses_ef8ca1a3affdfhD1OGaW9cmGN3 slug=happy-garden version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project governingRunId=ses_ef8ca1a3affdfhD1OGaW9cmGN3 title=Inspect the repository, read only. time={"created":1791122335177,"updated":1791122335177} created
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:55 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1a68ffek4YKDwU6nclcNK small=true agent=title mode=primary stream
+INFO  2026-10-04T13:58:55 +0ms service=bus type=session.updated publishing
+model request 26 [ "system", "user" ]
+INFO  2026-10-04T13:58:55 +1ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a3affdfhD1OGaW9cmGN3 seq=2 type=approval_requested appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=7 type=assistant_recording_started appended event
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=8 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:55 +0ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca1a68ffek4YKDwU6nclcNK small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=9 type=prompt_recording_started appended event
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=10 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:55 +2ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=11 type=context_recording_started appended event
+INFO  2026-10-04T13:58:55 +1ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=12 type=context_contribution_recorded appended event
+model request 27 [ "system", "user" ]
+INFO  2026-10-04T13:58:55 +30ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +28ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:55 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +42ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:55 +4ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=13 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:55 +6ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=14 type=artifact_created appended event
+INFO  2026-10-04T13:58:55 +8ms service=event-store runId=ses_ef8ca1a68ffek4YKDwU6nclcNK seq=15 type=run_completed appended event
+INFO  2026-10-04T13:58:55 +0ms service=event-transitions runId=ses_ef8ca1a68ffek4YKDwU6nclcNK status=completed eventType=run_completed seq=15 event-authority transition
+INFO  2026-10-04T13:58:55 +0ms service=session.prompt candidate=true accepted=true runId=ses_ef8ca1a68ffek4YKDwU6nclcNK reasonCodes=[] native completion candidate adjudicated
+INFO  2026-10-04T13:58:55 +0ms service=session.compaction pruning
+INFO  2026-10-04T13:58:55 +1ms service=session.prompt sessionID=ses_ef8ca1a68ffek4YKDwU6nclcNK cancel
+INFO  2026-10-04T13:58:55 +1ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:55 +1ms service=session.compaction pruned=0 total=0 found
+INFO  2026-10-04T13:58:55 +3ms service=default disposing all instances
+INFO  2026-10-04T13:58:55 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance
+INFO  2026-10-04T13:58:55 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project waiting for state disposal to complete
+INFO  2026-10-04T13:58:55 +0ms service=bus type=file.watcher.updated unsubscribing
+INFO  2026-10-04T13:58:55 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project state disposal completed

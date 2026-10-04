@@ -1,0 +1,90 @@
+{"variant":"second","controls":["changed-image-native-binding-denied","remote-only-second-compiled-image-allowed"],"providerCalls":2}
+
+INFO  2026-10-04T13:58:56 +41ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:56 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+barrier control changed-image-native-binding-denied
+INFO  2026-10-04T13:58:56 +86ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/config.json loading
+INFO  2026-10-04T13:58:56 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.json loading
+INFO  2026-10-04T13:58:56 +3ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.config/dax/dax.jsonc loading
+INFO  2026-10-04T13:58:56 +18ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:56 +1ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:56 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T13:58:56 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:56 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:56 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:56 +7ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:56 +0ms service=session.prompt step=0 sessionID=ses_ef8ca246affeQ2xjHUd2wiVM09 loop
+INFO  2026-10-04T13:58:56 +12ms service=provider status=started state
+INFO  2026-10-04T13:58:56 +1ms service=provider init
+INFO  2026-10-04T13:58:56 +1ms service=provider providerID=stage4d found
+INFO  2026-10-04T13:58:56 +0ms service=provider status=completed duration=2 state
+INFO  2026-10-04T13:58:56 +1ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:56 +0ms service=session.prompt status=started resolveTools
+INFO  2026-10-04T13:58:56 +4ms service=tool.registry status=started invalid
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 invalid
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started question
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 question
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started shell
+INFO  2026-10-04T13:58:56 +0ms service=shell-tool shell=/bin/zsh shell tool using shell
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 shell
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started read
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 read
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started glob
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 glob
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started grep
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 grep
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started edit
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 edit
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started write
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 write
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started task
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 task
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started webfetch
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 webfetch
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started todowrite
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 todowrite
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started pm_note
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 pm_note
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started skill
+INFO  2026-10-04T13:58:56 +1ms service=tool.registry status=completed duration=1 skill
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started git_branch
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 git_branch
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=started reflection
+INFO  2026-10-04T13:58:56 +0ms service=tool.registry status=completed duration=0 reflection
+INFO  2026-10-04T13:58:56 +1ms service=session.prompt status=completed duration=6 resolveTools
+INFO  2026-10-04T13:58:56 +3ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:56 +1ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca246affeQ2xjHUd2wiVM09 small=true agent=title mode=primary stream
+INFO  2026-10-04T13:58:56 +1ms service=provider status=started providerID=stage4d getSDK
+INFO  2026-10-04T13:58:56 +0ms service=provider providerID=stage4d pkg=@ai-sdk/openai-compatible using bundled provider
+INFO  2026-10-04T13:58:56 +0ms service=provider status=completed duration=0 providerID=stage4d getSDK
+model request 1 [ "system", "user" ]
+INFO  2026-10-04T13:58:56 +8ms service=session.summary title=Evidence inspected. title
+INFO  2026-10-04T13:58:56 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:56 +3ms service=vcs branch=HEAD initialized
+INFO  2026-10-04T13:58:56 +0ms service=bus type=file.watcher.updated subscribing
+INFO  2026-10-04T13:58:56 +3ms service=session.processor process
+INFO  2026-10-04T13:58:56 +6ms service=event-store runId=ses_ef8ca246affeQ2xjHUd2wiVM09 seq=14 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:56 +1ms service=llm providerID=stage4d modelID=probe sessionID=ses_ef8ca246affeQ2xjHUd2wiVM09 small=false agent=build mode=primary stream
+INFO  2026-10-04T13:58:56 +2ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:56 +5ms service=event-store runId=ses_ef8ca246affeQ2xjHUd2wiVM09 seq=15 type=prompt_contribution_recorded appended event
+INFO  2026-10-04T13:58:56 +3ms service=bus type=session.updated publishing
+INFO  2026-10-04T13:58:56 +0ms service=bus type=session.diff publishing
+INFO  2026-10-04T13:58:56 +2ms service=event-store runId=ses_ef8ca246affeQ2xjHUd2wiVM09 seq=16 type=context_contribution_recorded appended event
+model request 2 [ "system", "user", "assistant", "user" ]
+INFO  2026-10-04T13:58:57 +31ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:57 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:57 +1ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:57 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:57 +29ms service=snapshot hash=02acde6c3df7a622a0c7b766bf91c431c5553a1b cwd=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project git=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/.local/share/dax/snapshot/global tracking
+INFO  2026-10-04T13:58:57 +0ms service=bus type=message.part.updated publishing
+INFO  2026-10-04T13:58:57 +0ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:57 +45ms service=bus type=message.updated publishing
+INFO  2026-10-04T13:58:57 +7ms service=event-store runId=ses_ef8ca246affeQ2xjHUd2wiVM09 seq=17 type=assistant_message_recorded appended event
+INFO  2026-10-04T13:58:57 +1ms service=session.compaction pruning
+INFO  2026-10-04T13:58:57 +1ms service=session.prompt sessionID=ses_ef8ca246affeQ2xjHUd2wiVM09 cancel
+INFO  2026-10-04T13:58:57 +0ms service=bus type=session.status publishing
+INFO  2026-10-04T13:58:57 +0ms service=default disposing all instances
+INFO  2026-10-04T13:58:57 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance
+INFO  2026-10-04T13:58:57 +1ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project waiting for state disposal to complete
+INFO  2026-10-04T13:58:57 +0ms service=bus type=file.watcher.updated unsubscribing
+INFO  2026-10-04T13:58:57 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project state disposal completed

@@ -847,6 +847,7 @@ const RunEventVariants = [
       actor: z.string().nullable().optional(),
       comment: z.string().optional(),
       resolvedAt: z.string().optional(),
+      supersededByApprovalId: z.string().min(1).optional(),
     }),
   }),
   z.object({

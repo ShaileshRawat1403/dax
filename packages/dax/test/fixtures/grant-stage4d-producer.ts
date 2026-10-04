@@ -10,6 +10,8 @@ import { daxExecutable } from "@/capability/implementation-binding"
 import { CapabilityActionDeniedError, recordActionResolution } from "@/capability/record-resolution"
 import { mcpReadDescriptor } from "@/mcp/resource-identity"
 import { ContractGuardian, readContract } from "@/execution/contract-guardian"
+import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
+import { supersededReviewApprovals } from "@/state/events/grant-review-supersession"
 import { createGrantReviewedRun } from "@/execution/run-factory"
 import { Instance } from "@/project/instance"
 import { Session } from "@/session"
@@ -364,7 +366,111 @@ try {
         assert.equal(SessionStatus.get(runId).type, "idle")
         await api(`/${runId}/grant-review/start`, { expected: review.expected }, 409)
         assert.equal((await journal()).filter((event) => event.type === "execution_started").length, 1)
+        const completedR2 = (await projectRunStateFromEvents(runId))!
+        assert.equal(completedR2.status, "completed")
+        assert.equal(supersededReviewApprovals(completedR2, review.expected.approvalId).size, 1)
+        assert.deepEqual(reduceRunState(await journal()), completedR2)
+        controls.push("api-r2-completion-canonical-supersession")
         controls.push("api-genuine-start-at-most-one-dispatch")
+        const multi = CreateRunResponse.parse(await api("/", strict))
+        let multiReview = RunGrantReview.parse(await api(`/${multi.runId}/grant-review`))
+        for (const revision of [2, 3]) {
+          multiReview = RunGrantReview.parse(
+            await api(`/${multi.runId}/grant-review/revisions`, {
+              expected: multiReview.expected,
+              inputs: { writeScope: { roots: ["."], reviewed: true } },
+            }),
+          )
+          assert.equal(multiReview.expected.revision, revision)
+        }
+        await api(`/${multi.runId}/approvals/${multiReview.expected.approvalId}`, {
+          decision: "approve",
+          actorId: "fixture-operator",
+        })
+        await api(`/${multi.runId}/grant-review/start`, { expected: multiReview.expected })
+        for (
+          let index = 0;
+          index < 200 && (await projectRunStateFromEvents(multi.runId))?.status !== "completed";
+          index++
+        )
+          await new Promise((resolve) => setTimeout(resolve, 25))
+        const multiState = (await projectRunStateFromEvents(multi.runId))!
+        assert.equal(multiState.status, "completed")
+        assert.equal(supersededReviewApprovals(multiState, multiReview.expected.approvalId).size, 2)
+        assert.deepEqual(reduceRunState(await readRunEvents(multi.runId)), multiState)
+        controls.push("api-r3-completion-multi-revision-proof")
+        // Unrelated historical outcomes remain blockers before output artifacts.
+        for (const decision of ["expired", "rejected", "ask-expired", "pending", "review-missing-proof"] as const) {
+          let candidate = await create()
+          if (decision === "review-missing-proof") {
+            await resolveApprovalEvent(candidate.runId, candidate.revision.approvalId, "expired")
+            const revised = await GrantReview.revise(candidate.runId, candidate.revision.proposal)
+            candidate = { ...candidate, revision: revised }
+          }
+          await approve(candidate)
+          // Select the actual current canonical subject for a revised candidate.
+          const current = await GrantReview.inspect(candidate.runId)
+          await GrantReview.publish(candidate.runId, {
+            approvalId: current.expected.approvalId,
+            subject: current.approvalSubject!,
+          })
+          await GrantReview.activate(candidate.runId)
+          await GrantReview.claimStart(candidate.runId, current.expected)
+          await textPrompt(candidate.runId)
+          if (decision !== "review-missing-proof") {
+            const id = `blocked_${decision}`
+            const proof = (await projectRunStateFromEvents(candidate.runId))!.grantReview.published!
+            const binding = proof.bindings.find(
+              (item) => item.subject === subjectKey({ kind: "capability", capabilityId: "native.tool.read" }),
+            )!
+            await appendRunEventAtTail(candidate.runId, {
+              type: "approval_requested",
+              payload: {
+                approvalId: id,
+                approvalType: decision === "ask-expired" ? "capability_grant_ask" : "workflow_gate",
+                risk: "high",
+                ...(decision === "ask-expired"
+                  ? {
+                      expiresAt: new Date(Date.now() + 60000).toISOString(),
+                      grantAskSubject: {
+                        kind: "capability_grant_ask",
+                        grantSubject: binding.subject,
+                        capabilityId: "native.tool.read",
+                        contractDigest: proof.contractDigest,
+                        bindingDigest: binding.digest,
+                      },
+                    }
+                  : {}),
+              },
+              ...(decision === "ask-expired" ? { correlationId: id } : {}),
+            })
+            if (decision !== "pending")
+              await resolveApprovalEvent(
+                candidate.runId,
+                id,
+                decision === "rejected" ? "rejected" : "expired",
+                "fixture",
+              )
+          }
+          const before = (await projectRunStateFromEvents(candidate.runId))!
+          const assistant = (await Session.messages({ sessionID: candidate.runId }))
+            .filter((m) => m.info.role === "assistant")
+            .at(-1)!
+          const result = await adjudicateNativeCompletionCandidate({
+            sessionID: candidate.runId,
+            assistantMessageID: assistant.info.id,
+            finishReason: "stop",
+          })
+          assert.equal(result.accepted, false, decision)
+          assert.ok(
+            result.reasonCodes.some((code) => code.startsWith("approval_")),
+            `${decision}: ${result.reasonCodes}`,
+          )
+          const after = (await projectRunStateFromEvents(candidate.runId))!
+          assert.deepEqual(after.artifacts, before.artifacts)
+          assert.notEqual(after.status, "completed")
+        }
+        controls.push("api-non-superseded-approvals-block-before-artifacts")
         // Neutral intent is not a read-only policy: explicit reviewed roots can
         // grant native writes while the unchanged compiler has no required proof.
         const neutral = CreateRunResponse.parse(
@@ -402,9 +508,15 @@ try {
         assert.deepEqual(await readRunEvents(denied.runId), deniedJournal)
         controls.push("api-denied-review-readable-no-start")
         const fresh = async () => {
-          const created = CreateRunResponse.parse(await api("/", { ...strict, capabilityReview: {
-            ...strict.capabilityReview, writeScope: { roots: ["."], reviewed: true },
-          } }))
+          const created = CreateRunResponse.parse(
+            await api("/", {
+              ...strict,
+              capabilityReview: {
+                ...strict.capabilityReview,
+                writeScope: { roots: ["."], reviewed: true },
+              },
+            }),
+          )
           const review = RunGrantReview.parse(await api(`/${created.runId}/grant-review`))
           await api(`/${created.runId}/approvals/${review.expected.approvalId}`, {
             decision: "approve",
@@ -444,9 +556,7 @@ try {
           subject: neverStarted.subject,
         })
         await GrantReview.activate(neverStarted.runId)
-        const neverBinding = neverStarted.subject.bindings!.find((binding) =>
-          binding.subject === "native.tool.read",
-        )!
+        const neverBinding = neverStarted.subject.bindings!.find((binding) => binding.subject === "native.tool.read")!
         const neverCapability = neverBinding.subject
         await appendRunEventAtTail(neverStarted.runId, {
           type: "approval_requested",

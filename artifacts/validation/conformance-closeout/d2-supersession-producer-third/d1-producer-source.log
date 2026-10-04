@@ -1,0 +1,8 @@
+{"variant":"source","controls":["source-api-create-start-no-effects","source-native-denied","source-remote-only-denied","source-direct-action-denied"],"providerCalls":0}
+
+INFO  2026-10-04T13:58:57 +34ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project creating instance
+INFO  2026-10-04T13:58:57 +1ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project fromDirectory
+barrier control source-native-denied
+barrier control source-remote-only-denied
+INFO  2026-10-04T13:58:57 +67ms service=default disposing all instances
+INFO  2026-10-04T13:58:57 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-stage4d-producer-6TP3jl/project disposing instance

@@ -1,0 +1,3 @@
+$ bun run --cwd packages/dax typecheck
+$ tsc --noEmit
+src/state/events/grant-review-supersession.ts(15,17): error TS2339: Property 'approvalId' does not exist on type 'GrantReviewActivation'.

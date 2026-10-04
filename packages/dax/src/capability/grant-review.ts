@@ -2,12 +2,7 @@ import { isDeepStrictEqual } from "node:util"
 import { ExecutionContractV2 } from "@/execution/execution-contract"
 import { grantReviewPath } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
-import {
-  appendEventOnly,
-  recordGrantReviewActivated,
-  recordGrantReviewPublished,
-  resolveApprovalEvent,
-} from "@/state/events/event-transitions"
+import { recordGrantReviewActivated, recordGrantReviewPublished } from "@/state/events/event-transitions"
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import {
   CONTRACT_GRANT_APPROVAL_TYPE,
@@ -21,7 +16,8 @@ import { checkBinding, proposalDigest, proposeGrants, subjectKey, type GrantProp
 import { captureReviewSnapshot } from "./grant-review-snapshot"
 import { GrantOperatorInputs, GrantReviewPins, RunGrantReview } from "./reviewed-run-contract"
 import { assertReviewedImage } from "./reviewed-authority"
-import { appendRunEventAtTail } from "@/state/events/run-event-store"
+import { reduceRunState } from "@/state/events/run-reducer"
+import { appendRunEventBatchAtTail, type NewRunEvent, appendRunEventAtTail } from "@/state/events/run-event-store"
 
 /**
  * Stage 3 review of a run's capability grants.
@@ -152,7 +148,7 @@ async function commitments(revision: GrantReviewRevision) {
   }
 }
 
-async function requestApproval(record: GrantReviewRecord, revision: GrantReviewRevision) {
+async function approvalRequest(record: GrantReviewRecord, revision: GrantReviewRevision): Promise<NewRunEvent> {
   const subject: ContractGrantApprovalSubject = {
     kind: "contract_grant_set",
     runId: record.runId,
@@ -162,10 +158,9 @@ async function requestApproval(record: GrantReviewRecord, revision: GrantReviewR
     digest: revision.digest,
     ...(await commitments(revision)),
   }
-  await appendEventOnly(
-    record.runId,
-    "approval_requested",
-    {
+  return {
+    type: "approval_requested",
+    payload: {
       approvalId: revision.approvalId,
       approvalType: CONTRACT_GRANT_APPROVAL_TYPE,
       risk: "high",
@@ -176,10 +171,12 @@ async function requestApproval(record: GrantReviewRecord, revision: GrantReviewR
       source: "system",
       contractGrantSubject: subject,
     },
-    `cmd_grant_review_request_${revision.approvalId}`,
-    undefined,
-    { rejectDuplicateCommand: true },
-  )
+    commandId: `cmd_grant_review_request_${revision.approvalId}`,
+  }
+}
+
+async function requestApproval(record: GrantReviewRecord, revision: GrantReviewRevision) {
+  await appendRunEventAtTail(record.runId, await approvalRequest(record, revision), { rejectDuplicateCommand: true })
 }
 
 async function newRevision(record: GrantReviewRecord, proposal: GrantProposal): Promise<GrantReviewRevision> {
@@ -259,12 +256,31 @@ async function reviseUnderLock(runId: string, proposal: GrantProposal): Promise<
   for (const item of previous) item.status = "superseded"
   record.revisions.push(revision)
   await Storage.write(grantReviewPath(runId), record)
-  await requestApproval(record, revision)
-  const state = await projectRunStateFromEvents(runId)
-  for (const item of previous) {
-    const approval = state?.approvals.find((candidate) => candidate.approvalId === item.approvalId)
-    if (approval?.status === "pending") await resolveApprovalEvent(runId, item.approvalId, "expired", null)
-  }
+  const request = await approvalRequest(record, revision)
+  await appendRunEventBatchAtTail(runId, (events) => {
+    const state = reduceRunState(events)
+    if (!state) throw new GrantReviewError("run_not_canonical", runId)
+    // Canonical pending requests survive private-record interruption. Replace
+    // them in the same publication as the successor request, never one by one.
+    const pending = state.approvals.filter(
+      (item) => item.approvalType === CONTRACT_GRANT_APPROVAL_TYPE && item.status === "pending",
+    )
+    return [
+      request,
+      ...pending.map(
+        (item): NewRunEvent => ({
+          type: "approval_resolved",
+          payload: {
+            approvalId: item.approvalId,
+            decision: "expired",
+            actor: null,
+            supersededByApprovalId: revision.approvalId,
+          },
+          commandId: `cmd_grant_review_supersede_${item.approvalId}_${revision.approvalId}`,
+        }),
+      ),
+    ]
+  })
   return revision
 }
 
