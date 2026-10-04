@@ -1,0 +1,471 @@
+bun test v1.4.0 (34cbb9a40)
+
+src/conformance/astra-stage4d-reservation.test.ts:
+INFO  2026-10-04T08:03:34 +730ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project fromDirectory
+INFO  2026-10-04T08:03:34 +22ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +13ms service=event-transitions runId=ses_efa0f6d52ffeKvhe1Ql0EvfsVr contractId=ctr_ses_105f092b0001oiH9pqKPwhHqlI verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:34 +2ms service=event-store runId=ses_efa0f6d52ffeKvhe1Ql0EvfsVr seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:34 +0ms service=event-transitions runId=ses_efa0f6d52ffeKvhe1Ql0EvfsVr status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:34 +2ms service=session id=ses_efa0f6d52ffeKvhe1Ql0EvfsVr slug=witty-planet version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project governingRunId=ses_efa0f6d52ffeKvhe1Ql0EvfsVr title=Inspect the repository, read only. time={"created":1791101014715,"updated":1791101014715} created
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:34 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/.config/dax/config.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:34 +2ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:34 +4ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:34 +1ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +1ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +5ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project disposing instance
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:34 +1ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-DtEESB/project state disposal completed
+(pass) Astra reviewed reservation recovery > lost review reservation before first approval cannot enable direct effects [86.36ms]
+INFO  2026-10-04T08:03:34 +25ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-tv5bZK/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-tv5bZK/project fromDirectory
+INFO  2026-10-04T08:03:34 +15ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-tv5bZK/project disposing instance
+(pass) positive review recipe cannot hide behind an empty legacy marker [39.60ms]
+
+src/conformance/astra-stage4d-source.test.ts:
+INFO  2026-10-04T08:03:34 +25ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project fromDirectory
+INFO  2026-10-04T08:03:34 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +3ms service=event-transitions runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa contractId=ctr_ses_105f0931b002R2rPHHoiPZJAaX verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:34 +0ms service=event-transitions runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:34 +0ms service=session id=ses_efa0f6ce4ffeRqND1S3tCjuvDa slug=neon-rocket version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project governingRunId=ses_efa0f6ce4ffeRqND1S3tCjuvDa title=Inspect the repository, read only. time={"created":1791101014814,"updated":1791101014814} created
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:34 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/.config/dax/config.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +7ms service=event-store runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa seq=2 type=approval_requested appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa seq=3 type=approval_resolved appended event
+INFO  2026-10-04T08:03:34 +5ms service=event-store runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa seq=4 type=grant_review_published appended event
+INFO  2026-10-04T08:03:34 +3ms service=event-store runId=ses_efa0f6ce4ffeRqND1S3tCjuvDa seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T08:03:34 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project disposing instance
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-holm6x/project state disposal completed
+(pass) Astra independent source reviewed authority > source builds cannot borrow published remote-only activation [61.45ms]
+INFO  2026-10-04T08:03:34 +25ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project fromDirectory
+INFO  2026-10-04T08:03:34 +16ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +7ms service=event-transitions runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 contractId=ctr_ses_105f0935b002W7hJvYjmjVGGFQ verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:34 +5ms service=event-store runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-transitions runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:34 +0ms service=session id=ses_efa0f6ca4ffe7o1dGylmXr17P1 slug=shiny-forest version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project governingRunId=ses_efa0f6ca4ffe7o1dGylmXr17P1 title=Inspect the repository, read only. time={"created":1791101014886,"updated":1791101014886} created
+INFO  2026-10-04T08:03:34 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/.config/dax/config.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:34 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +3ms service=event-store runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 seq=2 type=approval_requested appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 seq=3 type=approval_resolved appended event
+INFO  2026-10-04T08:03:34 +3ms service=event-store runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 seq=4 type=grant_review_published appended event
+INFO  2026-10-04T08:03:34 +2ms service=event-store runId=ses_efa0f6ca4ffe7o1dGylmXr17P1 seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T08:03:34 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project disposing instance
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-9P5xv6/project state disposal completed
+(pass) Astra independent source reviewed authority > direct source read action cannot convert remote-only activation into an allow [65.62ms]
+INFO  2026-10-04T08:03:34 +24ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project fromDirectory
+INFO  2026-10-04T08:03:34 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +2ms service=event-transitions runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE contractId=ctr_ses_105f09399002PJAUTbAffyzvMv verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:34 +0ms service=event-transitions runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:34 +1ms service=session id=ses_efa0f6c66ffe1Vlz04Tp4lpOTE slug=cosmic-lagoon version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project governingRunId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE title=Inspect the repository, read only. time={"created":1791101014940,"updated":1791101014940} created
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/.config/dax/config.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:34 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE seq=2 type=approval_requested appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE seq=3 type=approval_resolved appended event
+INFO  2026-10-04T08:03:34 +3ms service=event-store runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE seq=4 type=grant_review_published appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6c66ffe1Vlz04Tp4lpOTE seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T08:03:34 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +1ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project disposing instance
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:34 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-HpkwWu/project state disposal completed
+(pass) Astra independent source reviewed authority > a lost review record cannot downgrade canonical reviewed action to compatibility [50.48ms]
+INFO  2026-10-04T08:03:34 +26ms service=default disposing all instances
+INFO  2026-10-04T08:03:34 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project creating instance
+INFO  2026-10-04T08:03:34 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project fromDirectory
+INFO  2026-10-04T08:03:34 +18ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:34 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:34 +2ms service=event-transitions runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C contractId=ctr_ses_105f093d2002X4byE7voObKpUR verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:34 +1ms service=event-store runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:34 +1ms service=event-transitions runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:34 +0ms service=session id=ses_efa0f6c2dffeF2DdVlXzlGpE2C slug=hidden-sailor version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project governingRunId=ses_efa0f6c2dffeF2DdVlXzlGpE2C title=Inspect the repository, read only. time={"created":1791101014998,"updated":1791101014998} created
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/.config/dax/config.json loading
+INFO  2026-10-04T08:03:34 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:34 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:34 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:34 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +2ms service=event-store runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C seq=2 type=approval_requested appended event
+INFO  2026-10-04T08:03:35 +1ms service=event-store runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C seq=3 type=approval_resolved appended event
+INFO  2026-10-04T08:03:35 +2ms service=event-store runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C seq=4 type=grant_review_published appended event
+INFO  2026-10-04T08:03:35 +2ms service=event-store runId=ses_efa0f6c2dffeF2DdVlXzlGpE2C seq=5 type=grant_review_activated appended event
+INFO  2026-10-04T08:03:35 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project disposing instance
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-stage4c-v2-YSa5tg/project state disposal completed
+(pass) Astra independent source reviewed authority > an old v1 artifact cannot erase review history when its marker is unreadable [60.84ms]
+
+src/conformance/grant-reservation.test.ts:
+INFO  2026-10-04T08:03:35 +25ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project fromDirectory
+INFO  2026-10-04T08:03:35 +15ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +2ms service=event-transitions runId=ses_efa0f6bf6ffedQ3PGWN4gnwEmo contractId=ctr_ses_105f0940900291PPNKPyGd5ohh verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:35 +1ms service=event-store runId=ses_efa0f6bf6ffedQ3PGWN4gnwEmo seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:35 +0ms service=event-transitions runId=ses_efa0f6bf6ffedQ3PGWN4gnwEmo status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:35 +1ms service=session id=ses_efa0f6bf6ffedQ3PGWN4gnwEmo slug=tidy-otter version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project governingRunId=ses_efa0f6bf6ffedQ3PGWN4gnwEmo title=Inspect the repository, read only. time={"created":1791101015052,"updated":1791101015052} created
+INFO  2026-10-04T08:03:35 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:35 +1ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/.config/dax/config.json loading
+INFO  2026-10-04T08:03:35 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:35 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:35 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +11ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project disposing instance
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Cf47MJ/project state disposal completed
+(pass) lost reservation before first request refuses effect entries and raw starts [53.83ms]
+INFO  2026-10-04T08:03:35 +23ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +2ms service=event-transitions runId=ses_efa0f6bc1ffe5GmRr1p0RXWHHF contractId=ctr_ses_105f0943e002IhsV8KheizgO49 verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:35 +1ms service=event-store runId=ses_efa0f6bc1ffe5GmRr1p0RXWHHF seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:35 +0ms service=event-transitions runId=ses_efa0f6bc1ffe5GmRr1p0RXWHHF status=queued eventType=execution_queued seq=1 event-authority transition
+INFO  2026-10-04T08:03:35 +1ms service=session id=ses_efa0f6bc1ffe5GmRr1p0RXWHHF slug=calm-sailor version=local projectID=global directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project governingRunId=ses_efa0f6bc1ffe5GmRr1p0RXWHHF title=Inspect the repository, read only. time={"created":1791101015105,"updated":1791101015105} created
+INFO  2026-10-04T08:03:35 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:35 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/.config/dax/config.json loading
+INFO  2026-10-04T08:03:35 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:35 +0ms service=config path=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:35 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=CodexAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=GeminiAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +0ms service=plugin name=AnthropicAuthPlugin loading internal plugin
+INFO  2026-10-04T08:03:35 +1ms service=event-store runId=ses_efa0f6bc1ffe5GmRr1p0RXWHHF seq=2 type=approval_requested appended event
+INFO  2026-10-04T08:03:35 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project disposing instance
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project waiting for state disposal to complete
+INFO  2026-10-04T08:03:35 +0ms service=state key=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Tptlgl/project state disposal completed
+(pass) session publication already has canonical birth and reservation [43.38ms]
+INFO  2026-10-04T08:03:35 +23ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-p35HeK/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-p35HeK/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +3ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-p35HeK/project disposing instance
+(pass) failed genesis leaves reviewed recipe and no publicly usable session [39.73ms]
+INFO  2026-10-04T08:03:35 +24ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Htzu29/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Htzu29/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +0ms service=storage index=1 running migration
+ERROR 2026-10-04T08:03:35 +3ms service=event-store error=Conflicting reviewed initialization intent for run run_intent_retry runId=run_intent_retry failed to read run events
+INFO  2026-10-04T08:03:35 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-Htzu29/project disposing instance
+(pass) review intent is exact on retries, recipe disagreement and malformed schema [41.32ms]
+INFO  2026-10-04T08:03:35 +23ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-pGYjB3/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-pGYjB3/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +2ms service=event-store runId=run_ordinary_intent seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:35 +1ms service=event-store runId=run_ordinary_intent seq=2 type=execution_started appended event
+INFO  2026-10-04T08:03:35 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-pGYjB3/project disposing instance
+(pass) ordinary and historical births preserve absence and start semantics [40.96ms]
+INFO  2026-10-04T08:03:35 +22ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-cPbm0z/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-cPbm0z/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +1ms service=storage index=1 running migration
+ERROR 2026-10-04T08:03:35 +1ms service=event-store error=Invalid run authority for run_empty_uncertainty runId=run_empty_uncertainty failed to read run authority
+ERROR 2026-10-04T08:03:35 +0ms service=event-store error=Invalid run authority for run_empty_uncertainty runId=run_empty_uncertainty failed to read run authority
+WARN  2026-10-04T08:03:35 +0ms service=event-store runId=run_empty_uncertainty error=Invalid run authority for run_empty_uncertainty non-review journal retains legacy marker-read isolation
+ERROR 2026-10-04T08:03:35 +0ms service=event-store error=authority unavailable runId=run_empty_uncertainty failed to read run authority
+WARN  2026-10-04T08:03:35 +0ms service=event-store runId=run_empty_uncertainty error=authority unavailable non-review journal retains legacy marker-read isolation
+ERROR 2026-10-04T08:03:35 +0ms service=event-store error=authority unavailable runId=run_empty_unreadable failed to read run authority
+INFO  2026-10-04T08:03:35 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-cPbm0z/project disposing instance
+(pass) empty marker uncertainty refuses; readable ordinary history keeps legacy isolation [38.20ms]
+INFO  2026-10-04T08:03:35 +23ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-ZKIWeo/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-ZKIWeo/project fromDirectory
+INFO  2026-10-04T08:03:35 +14ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +3ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-ZKIWeo/project disposing instance
+(pass) erased birth intent and lost reservation cannot erase a readable reviewed recipe [40.97ms]
+INFO  2026-10-04T08:03:35 +23ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-jkq6e6/project creating instance
+INFO  2026-10-04T08:03:35 +0ms service=project directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-jkq6e6/project fromDirectory
+INFO  2026-10-04T08:03:35 +15ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:35 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:35 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:35 +0ms service=default directory=/private/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-grant-reservation-jkq6e6/project disposing instance
+(pass) empty legacy marker cannot negate literal or malformed reviewed intent [39.95ms]
+
+src/conformance/grant-stage4d.test.ts:
+{"stage4d":{"variant":"first","controls":["pending","reserved","denied","expired","superseded","approved-unpublished","unactivated","publication-intent-no-proof","stale-artifact","artifact-run-mismatch","artifact-schema-mismatch","missing-artifact","missing-review-with-journal-authority","missing-review-old-v1-artifact-denied","missing-pending-review-old-v1-artifact-denied","missing-review-unreadable-marker-old-v1-denied","missing-review-corrupt-journal-old-v1-denied","malformed-authority-marker","corrupt-review","corrupt-review-proposal","altered-activation-manifest","reordered-activation-manifest","activation-revision-mismatch","altered-remote-activation-manifest","reordered-remote-activation-manifest","malformed-source-selector","malformed-activation","raw-review-storage-failure","unreadable-review-structure","activated-v1-write-refused","genuine-native-SessionPrompt-read","idle-does-not-complete","journal-replay","genuine-remote-only-SessionPrompt","terminal-readable-no-dispatch"],"providerCalls":9},"otherImage":{"variant":"second","controls":["changed-image-native-binding-denied","remote-only-second-compiled-image-allowed"],"providerCalls":2},"source":{"variant":"source","controls":["source-native-denied","source-remote-only-denied","source-direct-action-denied"],"providerCalls":0},"unknown":{"variant":"unknown","controls":["unknown-image-remote-only-denied"],"providerCalls":0}}
+(pass) stage 4d genuine compiled production authority > native and remote-only root producers, barrier states, image changes and source refusals [7364.69ms]
+
+src/conformance/contract-authority.test.ts:
+INFO  2026-10-04T08:03:42 +7370ms service=default disposing all instances
+INFO  2026-10-04T08:03:42 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:42 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:42 +134ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:42 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:42 +2ms service=session id=ses_efa0f4d79ffeN7JXKPOyPORfI6 slug=jolly-star version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Pre-run contract initialization time={"created":1791101022855,"updated":1791101022855} created
+INFO  2026-10-04T08:03:42 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:42 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-contract-authority-mutjay2n-vrbdhsj44xd/.config/dax/config.json loading
+INFO  2026-10-04T08:03:42 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-contract-authority-mutjay2n-vrbdhsj44xd/.config/dax/dax.json loading
+INFO  2026-10-04T08:03:42 +0ms service=config path=/var/folders/h6/3l6bv5x13y3_m3pjskz3c4kr0000gn/T/dax-contract-authority-mutjay2n-vrbdhsj44xd/.config/dax/dax.jsonc loading
+INFO  2026-10-04T08:03:42 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:42 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:42 +2ms service=contract-guardian runId=ses_efa0f4d79ffeN7JXKPOyPORfI6 contractId=ctr_ses_105f0b288001gU32VmX7fsyq33 contract initialized
+INFO  2026-10-04T08:03:42 +1ms service=contract-guardian runId=ses_efa0f4d79ffeN7JXKPOyPORfI6 contractId=ctr_ses_105f0b288001gU32VmX7fsyq33 contract initialized
+INFO  2026-10-04T08:03:42 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:42 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:42 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:42 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > creates an initial contract and permits a pre-run refinement [141.38ms]
+INFO  2026-10-04T08:03:42 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:42 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:42 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:42 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:42 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:42 +1ms service=session id=ses_efa0f4d32ffe7UxBJ8CKroxciH slug=quick-moon version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Canonical authority wins time={"created":1791101022925,"updated":1791101022925} created
+INFO  2026-10-04T08:03:42 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:42 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:42 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:42 +1ms service=contract-guardian runId=ses_efa0f4d32ffe7UxBJ8CKroxciH contractId=ctr_ses_105f0b2ce001v5exxSsfUxCUAR contract initialized
+INFO  2026-10-04T08:03:42 +1ms service=event-transitions runId=ses_efa0f4d32ffe7UxBJ8CKroxciH contractId=ctr_ses_105f0b2ce001v5exxSsfUxCUAR verificationRequired=false created event-authority run
+INFO  2026-10-04T08:03:42 +0ms service=run-store runId=ses_efa0f4d32ffe7UxBJ8CKroxciH contractId=ctr_ses_105f0b2ce001v5exxSsfUxCUAR created run state
+INFO  2026-10-04T08:03:42 +3ms service=default disposing all instances
+INFO  2026-10-04T08:03:42 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:42 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:42 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > locks immediately when canonical authority is established, even with a legacy created row [72.64ms]
+INFO  2026-10-04T08:03:42 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:42 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:42 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:42 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:42 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:42 +1ms service=session id=ses_efa0f4ceaffebtmtkkT2dTgvUB slug=gentle-nebula version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Contract read failure time={"created":1791101022997,"updated":1791101022997} created
+INFO  2026-10-04T08:03:42 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:42 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:42 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:42 +1ms service=contract-guardian runId=ses_efa0f4ceaffebtmtkkT2dTgvUB contractId=ctr_ses_105f0b3160015oh623hIy1LLDZ contract initialized
+ERROR 2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4ceaffebtmtkkT2dTgvUB error=contract storage unavailable failed to read execution contract
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > does not overwrite an existing contract when its read fails [68.40ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +0ms service=session id=ses_efa0f4ca6ffeIzBE6I7LNbNd81 slug=cosmic-mountain version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Invalid stored contract time={"created":1791101023065,"updated":1791101023065} created
+INFO  2026-10-04T08:03:43 +1ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:43 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4ca6ffeIzBE6I7LNbNd81 contractId=ctr_ses_105f0b35a001Ra1po49tLLLJ6W contract initialized
+ERROR 2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4ca6ffeIzBE6I7LNbNd81 error=Invalid ExecutionContract stored for run ses_efa0f4ca6ffeIzBE6I7LNbNd81 failed to read execution contract
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > does not overwrite a readable but invalid stored contract [67.91ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +1ms service=session id=ses_efa0f4c61ffes4uAUHAuTxTeEL slug=stellar-star version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Authority read failure time={"created":1791101023134,"updated":1791101023134} created
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:43 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:43 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4c61ffes4uAUHAuTxTeEL contractId=ctr_ses_105f0b39f001d1Db1sOD3LcrD1 contract initialized
+ERROR 2026-10-04T08:03:43 +0ms service=event-store error=authority storage unavailable runId=ses_efa0f4c61ffes4uAUHAuTxTeEL failed to read run authority
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > does not overwrite when authority storage is unreadable [68.14ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +65ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +1ms service=session id=ses_efa0f4c1cffeFDDsdJB3nTsENX slug=mighty-planet version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Malformed authority time={"created":1791101023203,"updated":1791101023203} created
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:43 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:43 +1ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4c1cffeFDDsdJB3nTsENX contractId=ctr_ses_105f0b3e40014j2EibR92FEmXK contract initialized
+ERROR 2026-10-04T08:03:43 +0ms service=event-store error=Invalid run authority for ses_efa0f4c1cffeFDDsdJB3nTsENX runId=ses_efa0f4c1cffeFDDsdJB3nTsENX failed to read run authority
+ERROR 2026-10-04T08:03:43 +1ms service=event-store error=Invalid run authority for ses_efa0f4c1cffeFDDsdJB3nTsENX runId=ses_efa0f4c1cffeFDDsdJB3nTsENX failed to read run authority
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > does not overwrite when an authority record is malformed [69.95ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +1ms service=session id=ses_efa0f4bd7ffeZCUYmuLrf29rYE slug=tidy-harbor version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Missing canonical authority time={"created":1791101023272,"updated":1791101023272} created
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:43 +1ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4bd7ffeZCUYmuLrf29rYE contractId=ctr_ses_105f0b429001Nok9ST0hkMFITc contract initialized
+INFO  2026-10-04T08:03:43 +1ms service=event-transitions runId=ses_efa0f4bd7ffeZCUYmuLrf29rYE contractId=ctr_ses_105f0b429001Nok9ST0hkMFITc verificationRequired=false created event-authority run
+WARN  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4bd7ffeZCUYmuLrf29rYE canonical events exist without a run authority marker
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > does not overwrite when canonical events remain after an authority marker is missing [70.88ms]
+INFO  2026-10-04T08:03:43 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +1ms service=session id=ses_efa0f4b90ffeBc0w5SakGlHwSl slug=clever-panda version=local projectID=278e79e0cecd9c477daab54f51fc0ec251969ca3 directory=/private/tmp/dax-astra-opus-ws1 title=Legacy contract lifecycle time={"created":1791101023343,"updated":1791101023343} created
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.created publishing
+INFO  2026-10-04T08:03:43 +0ms service=config path=/private/tmp/dax-astra-opus-ws1/dax.jsonc loading
+INFO  2026-10-04T08:03:43 +0ms service=bus type=session.updated publishing
+INFO  2026-10-04T08:03:43 +1ms service=contract-guardian runId=ses_efa0f4b90ffeBc0w5SakGlHwSl contractId=ctr_ses_105f0b470001k0EZybA6dDDLF4 contract initialized
+INFO  2026-10-04T08:03:43 +1ms service=run-store runId=ses_efa0f4b90ffeBc0w5SakGlHwSl contractId=ctr_ses_105f0b470001k0EZybA6dDDLF4 created run state
+INFO  2026-10-04T08:03:43 +0ms service=contract-guardian runId=ses_efa0f4b90ffeBc0w5SakGlHwSl contractId=ctr_ses_105f0b470001k0EZybA6dDDLF4 contract initialized
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 waiting for state disposal to complete
+INFO  2026-10-04T08:03:43 +0ms service=state key=/private/tmp/dax-astra-opus-ws1 state disposal completed
+(pass) ExecutionContract authority > preserves legacy created initialization but locks legacy running contracts [69.65ms]
+
+src/state/events/run-envelope-cutover.test.ts:
+INFO  2026-10-04T08:03:43 +3ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +2ms service=event-store runId=run_f880f32d9ba542d593bc47cedf17e017 seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +1ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > a newly initialized run writes a complete v2 owner sequence [68.02ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +2ms service=event-store runId=run_00c1f2c0ce4548418ff0d5f86534e0ee seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > a historical v1 run remains v1 when appended and independently replayable [67.75ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+(pass) run envelope cutover > mixed v1 and v2 envelopes cannot make one run appear partly migrated [0.52ms]
+INFO  2026-10-04T08:03:43 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > repair of a historical initialization recipe retains the v1 format [66.77ms]
+INFO  2026-10-04T08:03:43 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:43 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > new initialization persists its envelope version before an interrupted genesis append [67.73ms]
+INFO  2026-10-04T08:03:43 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:43 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:43 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:43 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:43 +1ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:44 +321ms service=event-store runId=run_concurrent_v2 seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:44 +104ms service=event-store runId=run_concurrent_v2 seq=2 type=execution_queued appended event
+INFO  2026-10-04T08:03:44 +103ms service=event-store runId=run_concurrent_v2 seq=3 type=execution_queued appended event
+INFO  2026-10-04T08:03:44 +103ms service=event-store runId=run_concurrent_v2 seq=4 type=execution_queued appended event
+INFO  2026-10-04T08:03:44 +1ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > concurrent initialization and tail appends retain one v2 birth format [699.25ms]
+INFO  2026-10-04T08:03:44 +3ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:44 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:44 +96ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:44 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:44 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > a direct append cannot supersede a historical interrupted recipe [99.76ms]
+INFO  2026-10-04T08:03:44 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:44 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:44 +64ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:44 +0ms service=storage index=1 running migration
+INFO  2026-10-04T08:03:44 +3ms service=event-store runId=run_v2_refs seq=1 type=execution_queued appended event
+INFO  2026-10-04T08:03:44 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > v2 preserves validated source references without accepting caller-selected owners [70.95ms]
+INFO  2026-10-04T08:03:44 +2ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 creating instance
+INFO  2026-10-04T08:03:44 +0ms service=project directory=/private/tmp/dax-astra-opus-ws1 fromDirectory
+INFO  2026-10-04T08:03:44 +63ms service=storage index=0 running migration
+INFO  2026-10-04T08:03:44 +1ms service=storage index=1 running migration
+ERROR 2026-10-04T08:03:44 +1ms service=event-store error=Run run_corrupt_mixed has mixed envelope versions at seq 1. Refusing to project an ambiguous cutover. runId=run_corrupt_mixed failed to read run events
+ERROR 2026-10-04T08:03:44 +1ms service=event-store error=Conflicting initialization envelope version for run run_corrupt_recipe runId=run_corrupt_recipe failed to read run events
+ERROR 2026-10-04T08:03:44 +2ms service=event-store error=Invalid run authority for run_corrupt_invalid_marker runId=run_corrupt_invalid_marker failed to read run authority
+ERROR 2026-10-04T08:03:44 +0ms service=event-store error=Invalid run authority for run_corrupt_invalid_marker runId=run_corrupt_invalid_marker failed to read run events
+ERROR 2026-10-04T08:03:44 +0ms service=event-store error=Invalid run authority for run_corrupt_invalid_marker runId=run_corrupt_invalid_marker failed to read run authority
+ERROR 2026-10-04T08:03:44 +0ms service=event-store error=Invalid run authority for run_corrupt_invalid_marker runId=run_corrupt_invalid_marker failed to read run authority
+INFO  2026-10-04T08:03:44 +0ms service=default disposing all instances
+INFO  2026-10-04T08:03:44 +0ms service=default directory=/private/tmp/dax-astra-opus-ws1 disposing instance
+(pass) run envelope cutover > mixed logs and recipe-version conflicts reject read, repair and append without rewriting storage [70.27ms]
+
+ 32 pass
+ 0 fail
+ 190 expect() calls
+Ran 32 tests across 6 files. [10.71s]

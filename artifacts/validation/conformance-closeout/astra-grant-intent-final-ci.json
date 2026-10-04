@@ -1,0 +1,23 @@
+{
+  "sourceSha": "7fc5cd14f2719ce54ef603c462cfe1efb9b083d5",
+  "runId": 37187644506,
+  "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37187644506",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "validate (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (macos-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (windows-latest)",
+      "conclusion": "success"
+    }
+  ],
+  "reviewer": "Astra",
+  "independentlyChecked": true
+}
