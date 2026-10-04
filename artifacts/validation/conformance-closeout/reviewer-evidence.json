@@ -13,6 +13,12 @@
       "pass": 38,
       "fail": 0,
       "assertions": 379
+    },
+    "independent_journal_controls": {
+      "pass": 2,
+      "fail": 0,
+      "assertions": 4,
+      "files": 1
     }
   },
   "logs": [
@@ -27,6 +33,12 @@
       "source_path": "/private/tmp/dax-astra-32b2f34-review.log",
       "sha256": "36e4808606343981ef93a921e2163878320f1b4a43c56a32884960119802189f",
       "bytes": 151760
+    },
+    {
+      "path": "artifacts/validation/conformance-closeout/dax-astra-inherited-journal-controls.log",
+      "source_path": "/private/tmp/dax-astra-inherited-journal-controls.log",
+      "sha256": "b9ec2b0540f22bc6aea39d6e6562d635506860abccf47e61f895bd9009467738",
+      "bytes": 537
     }
   ]
 }

@@ -32,8 +32,12 @@ claims to the base above rather than to moving line numbers.
 | Workstation panel manufactures busy from run status | `cli/cmd/tui/routes/session/index.tsx`: `workstationState`, `sessionStatusType: summary.status === "running" ? "busy" : "idle"` | Show live session activity separately from durable run state |
 | Project journal exists here, production PM uses SQLite | `state/events/project-journal.ts`; `pm/index.ts`; `tool/pm_note.ts`; `dax/memory/index.ts` | Review existing journal before migration; no closure from primitive existence |
 
-The inherited stack `d2ef0b0..3c47d1a` remains under comprehensive review.
-Acceptance of an Opus slice does not accept that stack. Main still has eight open
+The inherited stack `d2ef0b0..3c47d1a` was inspected in the final Opus context
+`32b2f34` by Astra, who reported no blocking finding in the inspected production
+changes, 185 passing regressions, and two independent journal controls. This
+clears the inspected dependency audit for 4d design, not blanket gap/release
+acceptance. Record its exact-SHA review before D1.
+Acceptance of an Opus slice does not by itself accept that stack. Main still has eight open
 gaps; the six-entry feature ledger and its two removed entries are candidates.
 Its grant-gap prose predates the delivered inactive enforcement and must be
 corrected only as reviewed status, without claiming closure.
@@ -91,6 +95,11 @@ agents). Inspection returns it; revision/start compare it to the approval subjec
 stored revision and journal proof under the same mutation lock. A single matching
 grant digest cannot substitute for a changed manifest. No caller-provided binding
 material becomes authority.
+
+Validate a nonblank actor, the approval type, decision and remember combination
+before any approval append. An invalid request must leave no approved history,
+including when a remember flag is rejected. Existing approval requests outside
+reviewed mode retain their compatibility behavior.
 
 Keep `resumeCanonicalWorkflowApproval` from treating grant review/ask approvals as
 ordinary workflow-resume triggers. Grant approval and start are distinct actions.
@@ -268,28 +277,53 @@ permissions/guard apply. This does not establish a verification-command binding.
 | Workers | Worker reviewed activation refused | A fixed worker implementation with protected launch/image binding and a reviewed invocation/environment boundary. General installed CLIs/providers remain unresolved |
 | Verification | Required verification reviewed activation refused | A finite built-in verifier or immutable verified image with the genuine runner, executable, exact argv and cwd bound through launch. Repository scripts/interpreters/dependencies need their own proof |
 | Source native | Never activates reviewed authority | Compile a development candidate into an image. Hashing source directories or cached modules cannot create an exact binding |
-| Legacy custom tools/caller graph operators | Compatibility dispatch remains unenrolled; reviewed execution denied | Explicit validated descriptors bound to actual registered executor handles; no descriptor invented from aliases. Universal coverage or an explicitly reviewed compatibility exclusion needs its own decision |
+| Legacy custom tools/caller graph operators | Currently unenrolled; reviewed tool dispatch denied | Conservative descriptive runtime enrollment of actual registered handles in dedicated namespaces; high risk, opaque scope, requiresVerification. No native identity borrowed, attestation implied or grant invented |
 
 Do not implement speculative forms in 4d, add external acknowledgement as a
 shortcut for local executors, rename these gaps away, or expand into generic
 sandbox development. No safe supported form is established here for those
 families. Production opt-in proves the restricted slice, not universal grant
-closure. `inv5.contract-grants` and `inv5.grant-resolution` remain open until their
-full definitions are met, or Astra explicitly approves a revised definition
-with permanent exclusions and the maintainer accepts that product boundary.
-Vocabulary/properties remain open while compatible unenrolled executors dispatch.
+closure. Finish the existing invariant rather than narrow its definition as the
+default path. Unsupported forms need not become executable to satisfy mediation:
+a request under reviewed authority must reach the shared lookup and produce a
+durable denial before an effect. An unavailable allow binding is different from
+a missing lookup path. Gap closure needs actual behavior evidence for both.
+
+The present inventory separates them:
+
+| Path | Shared lookup already present | Remaining mediation work |
+| --- | --- | --- |
+| Native/plugin/MCP model tools, queued tasks and batch leaves | `native-settlement.beginNativeInvocation` | Lift the legitimate producer barrier, prove compiled dispatch and durable unbindable/unenrolled denial |
+| Shell, attachments/template context, MCP reads, fixed workflows, worker launch and verification | `recordActionResolution` at their production call sites | Prove each attempted reviewed dispatch reaches lookup and durable denial; unsupported start preflight currently refuses before an action lookup, so preserve a durable, clearly identified preflight refusal rather than misrepresent it as an enforced action |
+| Graph operator dispatch | `run-graph.ts` resolves an executor handle but calls `execution.execute` without shared authority lookup | Add canonical-aware mediation before graph effects; reviewed-run references must never bypass through this direct executor path. No-contract graph compatibility must still be explicit |
+| Debug agent direct execution | `cli/cmd/debug/agent.ts` resolves a handle then executes directly | Explicitly keep noncanonical calls from borrowing reviewed authority; determine and cover the shared no-contract lookup boundary without silently adding a run |
+| Legacy/custom descriptor coverage | Registration remains descriptive opt-in or unenrolled | Design conservative automatic descriptive enrollment separately; immutable actual handle binding, dedicated legacy namespaces, strict descriptors, collision controls and catalog lifecycle tests |
+
+Graph/debug compatibility has no canonical run journal; the current absence of a
+run is not proof of universal mediation. Its relationship to the invariant must
+be resolved explicitly in C2, not omitted or described as already denied. Where
+canonical authority exists, a failed denial append must itself refuse dispatch.
+A corrupt or missing authority may be unable to accept a journal record; report
+that evidence limitation while still performing zero effects.
+
+Vocabulary/properties remain open until all registered production handles have
+validated descriptive identities. Conservative enrollment describes unknown
+code without authorizing it and preserves existing no-contract/v1 execution.
+Replace compiler-shape approximations in `conformance/contract-capability.test.ts`
+with reviewed production creation/dispatch/denial controls before considering
+grant closure; unchanged v1 compilation cannot by itself refute the opt-in.
 
 ## 9. Execution order and review checkpoints
 
 | Slice | Concrete delivery | Stop/review criterion |
 | --- | --- | --- |
+| C1 (dependency prerequisite) | Record Astra's exact-SHA inherited dependency audit and any carried limitations | Complete before D1; journal/envelope gap closures still need explicit review/integration |
 | D0 (this document) | Architecture, exposure, activity, successor and producer controls | Astra accepts design before any barrier-lifting code |
 | D1 | Shared enforcing-image/proof read gate; typed governing-contract reads; guardian/session barrier integration; v1 writer unchanged | Bounded Tier 2 exact-SHA review, all barrier states and real compiled root dispatch; no exposure until this succeeds |
 | D2 | Explicit generic creation, inspect/revise/start API, digest-pinned concurrency/recovery, approval ask/always routing, metadata and SDK | Route-based compiled acceptance including crash windows; every legacy/fallback row preserved |
 | D3 | Complete MCP/ask/TaskTool compiled producer matrix; correct defects those controls expose | Every required row in section 7 passes; independent adversarial review at exact SHA |
-| D4 | Session-activity presentation and explicit successor flow/control | Canonical completion remains unchanged; idle/open-run and successor isolation controls pass |
-| C1 | Inherited stack acceptance and candidate ledger/status reconciliation | Journal primitive/envelope closures require comprehensive review; no merge on partial slice acceptance |
-| C2 | Supported-form/enrollment decisions for section 8; implement only independently approved bounded forms | Grant/vocabulary/property closures need honest production coverage; no automatic exclusions |
+| D4 | Separate bounded session-activity UI bugfix; explicit successor flow/control in its own bounded slice | Canonical completion remains unchanged; idle/open-run and successor isolation controls pass |
+| C2 | Conservative descriptive legacy enrollment, missing graph/debug mediation and durable denials; separately approved supported forms only where needed | Grant/vocabulary/property closures need production lookup/denial coverage, not executable support for every family; no default gap narrowing |
 | C3 | Review existing project-journal candidate; operator fact inspection/approval; migrate production PM fact reads/writes | Facts owned only by project journal; cited digest-bound approval; replay after source-run removal; denied change never publishes |
 | C4 | Governed memory producer using approved project facts | Model may propose, named operator decides exact content; promote/supersede/retire only through journal; no raw model/tool SQLite promotion |
 | C5 | Final conformance/recovery/operator flows and future release readiness | Maintainer separately authorizes merge/release/installation; compatibility note covers every new record |
@@ -322,7 +356,8 @@ contain `packages`, which can contaminate broad Bun test discovery. Record
 required unavailable platforms/flows explicitly. Exact-SHA CI and reviewer
 acceptance are distinct from implementer checks.
 
-The next implementation slice is D1 after architectural approval. Decisions
+The next implementation slice is D1 after architectural approval and the
+reviewer records the inherited dependency audit at its exact SHA. Decisions
 requested: the restricted generic API opt-in and explicit start, the common
 image/proof gate and crash semantics, separate session activity, and the fresh
 reviewed successor boundary. Section 8 remains unresolved by design. No release
@@ -331,6 +366,7 @@ tag, asset, installed executable, main merge or frozen branch is changed.
 Reviewer-provided regression logs at source
 `32b2f34fc9dc3d78d20b4a9a29606f6e1a726309` are retained with their provenance and
 SHA-256 in `artifacts/validation/conformance-closeout/reviewer-evidence.json`.
-They report 185 inherited-path regressions and 38 final-Opus controls passing,
+They report 185 inherited-path regressions, two independent journal controls,
+and 38 final-Opus controls passing,
 not producer acceptance of 4d or blanket gap/release acceptance. Codex did not
 re-run these logs for this documentation-only slice.
