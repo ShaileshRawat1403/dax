@@ -173,6 +173,49 @@ async function activated() {
   return runId
 }
 
+describe("only a complete, valid read-site descriptor is converted to v2", () => {
+  test("missing fields, invalid values and extra properties keep their denial; a valid one converts", async () => {
+    await within(async () => {
+      const runId = await activated()
+      for (const family of ["resource", "prompt"] as const) {
+        const item = family === "resource" ? "file:///notes" : "review"
+        const v1 = mcpReadDescriptor(family, "gamma", item)
+        const read = (descriptor: unknown) =>
+          recordActionResolution({
+            governedBy: { sessionID: runId },
+            subject: `mcp_${family}`,
+            path: family === "resource" ? "mcp_resource" : "mcp_prompt",
+            initiator: "operator",
+            executor: { kind: "mcp", descriptor },
+            source: { server: "gamma", name: item },
+          })
+        for (const descriptor of [
+          { id: v1.id },
+          { ...v1, riskClass: "critical" },
+          { ...v1, requiresVerification: "no" },
+          { ...v1, scope: "anything" },
+          { ...v1, riskClass: "high" },
+        ]) {
+          const error = await rejection(read(descriptor))
+          expect(error).toBeInstanceOf(CapabilityActionDeniedError)
+          expect(["descriptor_invalid", "source_unproven"]).toContain((error as CapabilityActionDeniedError).reasonCode)
+        }
+        const denials = (await projectRunStateFromEvents(runId))!.capabilityResolutions.filter(
+          (item) => item.path === (family === "resource" ? "mcp_resource" : "mcp_prompt"),
+        )
+        // None was recorded as an enrolled allow under a v2 identity.
+        expect(denials.some((item) => item.decision !== "deny")).toBe(false)
+        expect(denials.some((item) => item.capabilityId?.includes(".v2."))).toBe(false)
+        // The genuine descriptor converts and is allowed.
+        expect(await read(v1)).toMatchObject({
+          decision: "allow",
+          capabilityId: mcpReadDescriptorV2(family, "gamma", item).id,
+        })
+      }
+    })
+  })
+})
+
 describe("enforcement covers a read only under its v2 identity", () => {
   test("a proven v1 read is still refused under a source grant; its v2 identity is allowed", async () => {
     const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, "ses_mcp_v2_enforce")

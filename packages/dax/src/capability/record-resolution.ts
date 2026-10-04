@@ -1,5 +1,6 @@
 import { ulid } from "ulid"
 import { mcpReadDescriptor, mcpReadDescriptorV2 } from "@/mcp/resource-identity"
+import { CapabilityDescriptor } from "./capability-types"
 import { readContract, resolveExecutionAuthority } from "@/execution/contract-guardian"
 import { assertNoGrantReview, GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { Instance } from "@/project/instance"
@@ -125,9 +126,22 @@ function reviewedReadExecutor(action: RecordedAction): RecordedAction["executor"
   const family = action.path === "mcp_resource" ? "resource" : action.path === "mcp_prompt" ? "prompt" : undefined
   if (!family || !action.source) return action.executor
   try {
+    // The supplied descriptor must be a complete, valid descriptor and exactly
+    // this source's v1 descriptor. Anything else is left as given, so the
+    // lookup still denies it (descriptor_invalid, or source_unproven); an
+    // invalid descriptor is never repaired into a valid identity.
+    const parsed = CapabilityDescriptor.safeParse(action.executor.descriptor)
+    if (!parsed.success) return action.executor
     const v1 = mcpReadDescriptor(family, action.source.server, action.source.name)
-    const given = action.executor.descriptor as { id?: unknown } | undefined
-    if (given?.id !== v1.id) return action.executor
+    const given = parsed.data
+    if (
+      given.id !== v1.id ||
+      given.riskClass !== v1.riskClass ||
+      given.scopeSupport !== v1.scopeSupport ||
+      given.requiresVerification !== v1.requiresVerification
+    ) {
+      return action.executor
+    }
     return { ...action.executor, descriptor: mcpReadDescriptorV2(family, action.source.server, action.source.name) }
   } catch {
     return action.executor
