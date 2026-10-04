@@ -150,10 +150,19 @@ describe("ExecutionContract authority", () => {
         const { session, contract } = await createContract("Malformed authority")
         const changed = { ...contract, intent: "Changed while authority data is malformed." }
         await ContractGuardian.create(session.id, contract)
+        const contractKey = ["execution_contract", Instance.project.id, session.id]
+        const before = await Storage.read<unknown>(contractKey)
         await Storage.write(["run_authority", Instance.project.id, session.id, "authority.json"], {})
 
         await expect(ContractGuardian.create(session.id, changed)).rejects.toBeInstanceOf(ContractImmutabilityError)
-        await expectUnchanged(session.id, contract)
+        // Empty journal + malformed marker cannot prove ordinary authority.
+        // The v1 artifact remains intact, but cannot govern execution on its own.
+        const refusal = await ContractGuardian.get(session.id).then(
+          () => undefined,
+          (error: unknown) => error,
+        )
+        expect(refusal).toBeInstanceOf(Error)
+        expect(await Storage.read<unknown>(contractKey)).toEqual(before)
       },
     })
   })

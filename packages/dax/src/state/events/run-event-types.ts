@@ -235,7 +235,11 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
   grantScope: z.enum(["run", "filesystem", "delegation"]).optional(),
 }).superRefine((resolution, ctx) => {
   if (resolution.enrolled !== (resolution.capabilityId !== undefined)) {
-    ctx.addIssue({ code: "custom", path: ["capabilityId"], message: "is present exactly when the executor is enrolled" })
+    ctx.addIssue({
+      code: "custom",
+      path: ["capabilityId"],
+      message: "is present exactly when the executor is enrolled",
+    })
   }
   if (resolution.decision === "deny" && resolution.reasonCode === undefined) {
     ctx.addIssue({ code: "custom", path: ["reasonCode"], message: "a denial requires a stable reason" })
@@ -247,7 +251,11 @@ const CapabilityResolutionRecordedPayloadSchema = closed({
     ctx.addIssue({ code: "custom", path: ["contractId"], message: "is present exactly when a contract governed" })
   }
   if ((resolution.enforcement === "enforced") !== (resolution.activation !== undefined)) {
-    ctx.addIssue({ code: "custom", path: ["activation"], message: "is present exactly when the resolution is enforced" })
+    ctx.addIssue({
+      code: "custom",
+      path: ["activation"],
+      message: "is present exactly when the resolution is enforced",
+    })
   }
   if (resolution.enforcement === "enforced" && resolution.basis !== "v2_grant") {
     ctx.addIssue({ code: "custom", path: ["basis"], message: "only a reviewed contract is enforced" })
@@ -677,6 +685,8 @@ const RunEventVariants = [
       contractId: z.string(),
       verificationRequired: z.boolean().optional(),
       guardEnforcementMode: z.enum(["warn", "enforce"]).optional(),
+      /** Creation intent only; it grants no executable authority. */
+      grantReviewIntent: z.literal("reviewed_grants").optional(),
     }),
   }),
   z.object({ type: z.literal("execution_queued"), payload: z.object({}).strict() }),

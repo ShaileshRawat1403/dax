@@ -1,0 +1,29 @@
+{
+  "source_sha": "f2484a2f6131494d82a734b9e2326496e673f2c2",
+  "reviewer": "Astra",
+  "provenance": "Independent reviewer log copied unchanged; not implementer rerun",
+  "reported_result": {
+    "pass": 50,
+    "fail": 0,
+    "assertions": 223
+  },
+  "log": "artifacts/validation/conformance-closeout/dax-astra-d1-exact-review.log",
+  "sha256": "9ba0b20302128a7f5433df61c8d6782129e0a8a441aa2c5b92fe29439207e161",
+  "status": "SHIP D1; exact SHA CI all three completed success; D2 GO",
+  "ci": {
+    "run_id": 37173410384,
+    "sha": "f2484a2f6131494d82a734b9e2326496e673f2c2",
+    "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37173410384",
+    "platforms": [
+      "validate (macos-latest)",
+      "validate (windows-latest)",
+      "validate (ubuntu-latest)"
+    ],
+    "conclusion": "success"
+  },
+  "independent_test_source": {
+    "path": "artifacts/validation/conformance-closeout/dax-astra-d1-source-controls.txt",
+    "source_path": "/private/tmp/dax-astra-opus-ws1/packages/dax/src/conformance/astra-stage4d-source.test.ts",
+    "sha256": "41e689afd15fc7b5aa9b2ff79f1893485a9bfbe947933e61f28c8487bb2c40f2"
+  }
+}

@@ -25,8 +25,14 @@ export async function createEventAuthorityRun(
   contractId: string,
   verificationRequired = false,
   guardEnforcementMode: "warn" | "enforce" = "warn",
+  grantReviewIntent?: "reviewed_grants",
 ): Promise<void> {
-  await initializeRunEventAuthority(runId, { contractId, verificationRequired, guardEnforcementMode })
+  await initializeRunEventAuthority(runId, {
+    contractId,
+    verificationRequired,
+    guardEnforcementMode,
+    ...(grantReviewIntent ? { grantReviewIntent } : {}),
+  })
 
   log.info("created event-authority run", { runId, contractId, verificationRequired })
 }

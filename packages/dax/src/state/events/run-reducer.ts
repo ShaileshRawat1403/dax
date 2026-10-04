@@ -67,7 +67,11 @@ function remintsTool(server: string, name: string, capabilityId: string | undefi
 // The identity namespace each MCP family mints under, as the dynamic and
 // resource identity modules define them; restated here so replay stays free of
 // those modules. Checked against them by the stage 4b tests.
-export const MCP_FAMILY_NAMESPACE = { tool: "mcp.tool.v1.", resource: "mcp.resource.v1.", prompt: "mcp.prompt.v1." } as const
+export const MCP_FAMILY_NAMESPACE = {
+  tool: "mcp.tool.v1.",
+  resource: "mcp.resource.v1.",
+  prompt: "mcp.prompt.v1.",
+} as const
 /**
  * The state machine is defined once, in run-state.ts.
  *
@@ -220,6 +224,8 @@ export type CanonicalRunState = RunState & {
    * request's subject, the one publication, and the one activation.
    */
   grantReview: {
+    /** Immutable birth intent; absence preserves historical ordinary runs. */
+    intent?: "reviewed_grants"
     requests: Record<string, ContractGrantApprovalSubject>
     published: GrantReviewPublication | null
     activated: GrantReviewActivation | null
@@ -604,6 +610,7 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     contractId: string
     verificationRequired?: boolean
     guardEnforcementMode?: "warn" | "enforce"
+    grantReviewIntent?: "reviewed_grants"
   }
   const contractId = birth.contractId
 
@@ -615,7 +622,15 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
     steps: [],
     invocations: {},
     capabilityResolutions: [],
-    grantReview: { requests: {}, published: null, activated: null, asks: {}, remembered: {}, askDeadlines: {} },
+    grantReview: {
+      ...(birth.grantReviewIntent ? { intent: birth.grantReviewIntent } : {}),
+      requests: {},
+      published: null,
+      activated: null,
+      asks: {},
+      remembered: {},
+      askDeadlines: {},
+    },
     delegationHistory: {
       coverage: "complete",
       records: [],
@@ -710,6 +725,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       }
 
       case "workflow_started": {
+        if (
+          (state.grantReview.intent || Object.keys(state.grantReview.requests).length || state.grantReview.published) &&
+          !state.grantReview.activated
+        )
+          throw new Error(`Run ${state.runId} cannot start before grant review activation`)
         if (!isLegalTransition(state.status, "running")) {
           throw new Error(`Illegal transition from ${state.status} to running`)
         }
@@ -883,7 +903,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (!subject || !approval || approval.approvalType !== CONTRACT_GRANT_APPROVAL_TYPE) {
           throw new Error(`Grant review publication cites no grant review request: ${payload.approvalId}`)
         }
-        if (approval.status !== "approved" || !approval.decidedBy?.trim() || approval.decidedBy !== payload.approvedBy) {
+        if (
+          approval.status !== "approved" ||
+          !approval.decidedBy?.trim() ||
+          approval.decidedBy !== payload.approvedBy
+        ) {
           throw new Error(`Grant review publication ${payload.approvalId} lacks a named approval`)
         }
         if (
@@ -935,8 +959,10 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         if (!asked || !approval || approval.status !== "approved" || !approval.decidedBy?.trim()) {
           throw new Error(`Only an approved, named grant ask can be remembered: ${payload.approvalId}`)
         }
-        if (!sameAsk(asked, payload.subject)) throw new Error(`Remembered ask differs from its request: ${payload.approvalId}`)
-        if (state.grantReview.remembered[payload.approvalId]) throw new Error(`Ask already remembered: ${payload.approvalId}`)
+        if (!sameAsk(asked, payload.subject))
+          throw new Error(`Remembered ask differs from its request: ${payload.approvalId}`)
+        if (state.grantReview.remembered[payload.approvalId])
+          throw new Error(`Ask already remembered: ${payload.approvalId}`)
         state.grantReview.remembered[payload.approvalId] = payload.subject
         break
       }
@@ -1147,9 +1173,14 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           }
           if (
             payload.summary &&
-            state.compactionHistory.sessions.some((candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId) &&
+            state.compactionHistory.sessions.some(
+              (candidate) => candidate.sessionId === payload.sessionId && candidate.markerEventId,
+            ) &&
             !state.compactionHistory.attempts.some(
-              (attempt) => attempt.sessionId === payload.sessionId && attempt.summaryMessageId === payload.messageId && attempt.status === "open",
+              (attempt) =>
+                attempt.sessionId === payload.sessionId &&
+                attempt.summaryMessageId === payload.messageId &&
+                attempt.status === "open",
             )
           ) {
             throw new Error(`Compaction summary has no bound attempt: ${payload.messageId}`)
@@ -1342,25 +1373,35 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       case "compaction_attempt_bound": {
         const payload = event.payload as Extract<RunEventPayload, { type: "compaction_attempt_bound" }>["payload"]
         const session = state.compactionHistory.sessions.find((candidate) => candidate.sessionId === payload.sessionId)
-        if (!session?.markerEventId || isTerminalStatus(state.status)) throw new Error(`Compaction attempt has no active marker`)
+        if (!session?.markerEventId || isTerminalStatus(state.status))
+          throw new Error(`Compaction attempt has no active marker`)
         if (event.correlationId !== payload.summaryMessageId || event.causationId !== session.markerEventId) {
           throw new Error(`Compaction attempt identity mismatch`)
         }
         if (session.replacementEventId !== payload.previousReplacementEventId) {
           throw new Error(`Compaction attempt uses a stale replacement boundary`)
         }
-        if (state.compactionHistory.attempts.some((attempt) => attempt.sessionId === payload.sessionId && attempt.status === "open")) {
+        if (
+          state.compactionHistory.attempts.some(
+            (attempt) => attempt.sessionId === payload.sessionId && attempt.status === "open",
+          )
+        ) {
           throw new Error(`Compaction session already has an open attempt`)
         }
         if (state.compactionHistory.attempts.some((attempt) => attempt.summaryMessageId === payload.summaryMessageId)) {
           throw new Error(`Compaction summary identity already bound`)
         }
-        if (!state.compactionHistory.attempts.some((attempt) => attempt.sessionId === payload.sessionId) &&
-          payload.markerMessageId !== session.cutoverMarkerId) {
+        if (
+          !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === payload.sessionId) &&
+          payload.markerMessageId !== session.cutoverMarkerId
+        ) {
           throw new Error(`First compaction attempt must use its cutover marker`)
         }
-        if (state.compactionHistory.attempts.some((attempt) =>
-          attempt.sessionId === payload.sessionId && attempt.markerMessageId === payload.markerMessageId)) {
+        if (
+          state.compactionHistory.attempts.some(
+            (attempt) => attempt.sessionId === payload.sessionId && attempt.markerMessageId === payload.markerMessageId,
+          )
+        ) {
           throw new Error(`Compaction marker already used by an attempt`)
         }
         if (
@@ -1370,20 +1411,28 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         ) {
           throw new Error(`Compaction attempt prefix does not replay`)
         }
-        const previous = state.compactionHistory.attempts.find((attempt) =>
-          attempt.outcomeEventId === payload.previousReplacementEventId && attempt.status === "adopted")
+        const previous = state.compactionHistory.attempts.find(
+          (attempt) => attempt.outcomeEventId === payload.previousReplacementEventId && attempt.status === "adopted",
+        )
         if (payload.previousReplacementEventId) {
-          if (!previous || previous.sessionId !== payload.sessionId ||
+          if (
+            !previous ||
+            previous.sessionId !== payload.sessionId ||
             payload.prefix.messageIds[0] !== previous.markerMessageId ||
-            !payload.prefix.messageIds.includes(previous.summaryMessageId)) {
+            !payload.prefix.messageIds.includes(previous.summaryMessageId)
+          ) {
             throw new Error(`Compaction prefix omits the previous replacement boundary`)
           }
         }
-        const mostRecent = state.compactionHistory.attempts.findLast((attempt) => attempt.sessionId === payload.sessionId)
+        const mostRecent = state.compactionHistory.attempts.findLast(
+          (attempt) => attempt.sessionId === payload.sessionId,
+        )
         if (mostRecent?.status === "not_adopted") {
           const priorPrefix = mostRecent.prefix.messageIds
-          if (!priorPrefix.every((messageId, index) => payload.prefix.messageIds[index] === messageId) ||
-            !payload.prefix.messageIds.includes(mostRecent.summaryMessageId)) {
+          if (
+            !priorPrefix.every((messageId, index) => payload.prefix.messageIds[index] === messageId) ||
+            !payload.prefix.messageIds.includes(mostRecent.summaryMessageId)
+          ) {
             throw new Error(`Compaction prefix skips a non-adopted attempt`)
           }
         }
@@ -1398,23 +1447,43 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
 
       case "compaction_attempt_closed": {
         const payload = event.payload as Extract<RunEventPayload, { type: "compaction_attempt_closed" }>["payload"]
-        const attempt = state.compactionHistory.attempts.find((candidate) => candidate.eventId === payload.attemptEventId)
-        const summary = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.summaryMessageId)
-        if (!attempt || attempt.status !== "open" || attempt.sessionId !== payload.sessionId || attempt.summaryMessageId !== payload.summaryMessageId) {
+        const attempt = state.compactionHistory.attempts.find(
+          (candidate) => candidate.eventId === payload.attemptEventId,
+        )
+        const summary = state.assistantHistory.messages.find(
+          (candidate) => candidate.messageId === payload.summaryMessageId,
+        )
+        if (
+          !attempt ||
+          attempt.status !== "open" ||
+          attempt.sessionId !== payload.sessionId ||
+          attempt.summaryMessageId !== payload.summaryMessageId
+        ) {
           throw new Error(`Compaction close does not match an open attempt`)
         }
-        if (event.correlationId !== payload.summaryMessageId || event.causationId !== payload.summarySettlementEventId) {
+        if (
+          event.correlationId !== payload.summaryMessageId ||
+          event.causationId !== payload.summarySettlementEventId
+        ) {
           throw new Error(`Compaction close causation mismatch`)
         }
-        if (!summary?.summary || summary.sessionId !== payload.sessionId || summary.settlement?.eventId !== payload.summarySettlementEventId) {
+        if (
+          !summary?.summary ||
+          summary.sessionId !== payload.sessionId ||
+          summary.settlement?.eventId !== payload.summarySettlementEventId
+        ) {
           throw new Error(`Compaction close has no matching settled summary`)
         }
         const settlement = summary.settlement
         const validReason =
           (payload.reason === "failed" && settlement.status === "failed") ||
           (payload.reason === "cancelled" && settlement.status === "cancelled") ||
-          (payload.reason === "finish_not_stop" && settlement.status === "completed" && settlement.finishReason !== "stop") ||
-          (payload.reason === "empty_summary" && settlement.status === "completed" && settlement.finishReason === "stop")
+          (payload.reason === "finish_not_stop" &&
+            settlement.status === "completed" &&
+            settlement.finishReason !== "stop") ||
+          (payload.reason === "empty_summary" &&
+            settlement.status === "completed" &&
+            settlement.finishReason === "stop")
         if (!validReason) throw new Error(`Compaction close reason does not match summary settlement`)
         attempt.status = "not_adopted"
         attempt.outcomeEventId = event.eventId
@@ -1423,16 +1492,29 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       }
 
       case "compaction_replacement_recorded": {
-        const payload = event.payload as Extract<RunEventPayload, { type: "compaction_replacement_recorded" }>["payload"]
-        const attempt = state.compactionHistory.attempts.find((candidate) => candidate.eventId === payload.attemptEventId)
+        const payload = event.payload as Extract<
+          RunEventPayload,
+          { type: "compaction_replacement_recorded" }
+        >["payload"]
+        const attempt = state.compactionHistory.attempts.find(
+          (candidate) => candidate.eventId === payload.attemptEventId,
+        )
         const session = state.compactionHistory.sessions.find((candidate) => candidate.sessionId === payload.sessionId)
-        const summary = state.assistantHistory.messages.find((candidate) => candidate.messageId === payload.summaryMessageId)
+        const summary = state.assistantHistory.messages.find(
+          (candidate) => candidate.messageId === payload.summaryMessageId,
+        )
         if (!attempt || attempt.status !== "open" || !session?.markerEventId || isTerminalStatus(state.status)) {
           throw new Error(`Compaction replacement has no active attempt`)
         }
-        if (state.compactionHistory.attempts.some((candidate) =>
-          candidate !== attempt && candidate.sessionId === payload.sessionId &&
-          candidate.markerMessageId === payload.markerMessageId && candidate.status === "adopted")) {
+        if (
+          state.compactionHistory.attempts.some(
+            (candidate) =>
+              candidate !== attempt &&
+              candidate.sessionId === payload.sessionId &&
+              candidate.markerMessageId === payload.markerMessageId &&
+              candidate.status === "adopted",
+          )
+        ) {
           throw new Error(`Compaction marker already has an adopted replacement`)
         }
         if (
@@ -1449,9 +1531,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
         }
         const settlement = summary?.settlement
         if (
-          !summary?.summary || summary.sessionId !== payload.sessionId || summary.parentMessageId !== payload.markerMessageId ||
-          !settlement || settlement.eventId !== payload.summarySettlementEventId ||
-          settlement.status !== "completed" || settlement.finishReason !== "stop" ||
+          !summary?.summary ||
+          summary.sessionId !== payload.sessionId ||
+          summary.parentMessageId !== payload.markerMessageId ||
+          !settlement ||
+          settlement.eventId !== payload.summarySettlementEventId ||
+          settlement.status !== "completed" ||
+          settlement.finishReason !== "stop" ||
           !settlement.text.parts.some((part) => part.finalization === "finalized_post_plugin" && part.utf8Bytes > 0) ||
           settlement.text.digest !== payload.summaryDigest ||
           settlement.promptDispatch?.finalEventId !== payload.promptEventId ||
@@ -1460,7 +1546,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
           throw new Error(`Compaction replacement has no eligible settled summary`)
         }
         const context = state.contextHistory.dispatches.find((dispatch) => dispatch.eventId === payload.contextEventId)
-        if (!context || context.messageId !== payload.summaryMessageId || context.partition.digest !== payload.contextPartitionDigest) {
+        if (
+          !context ||
+          context.messageId !== payload.summaryMessageId ||
+          context.partition.digest !== payload.contextPartitionDigest
+        ) {
           throw new Error(`Compaction replacement context commitment mismatch`)
         }
         attempt.status = "adopted"
@@ -2051,8 +2141,13 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       case "workflow_completed":
       case "run_completed": {
         if (!isTerminalStatus(state.status)) {
-          if (state.compactionHistory.sessions.some((session) => session.markerEventId &&
-            !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === session.sessionId))) {
+          if (
+            state.compactionHistory.sessions.some(
+              (session) =>
+                session.markerEventId &&
+                !state.compactionHistory.attempts.some((attempt) => attempt.sessionId === session.sessionId),
+            )
+          ) {
             throw new Error(`Run cannot complete with a compaction marker lacking its first attempt`)
           }
           if (state.compactionHistory.attempts.some((attempt) => attempt.status === "open")) {
@@ -2167,6 +2262,11 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
       // into RunState only when the governance projection is added; for now
       // the event log is their store, so reduction is a no-op.
       case "execution_started": {
+        if (
+          (state.grantReview.intent || Object.keys(state.grantReview.requests).length || state.grantReview.published) &&
+          !state.grantReview.activated
+        )
+          throw new Error(`Run ${state.runId} cannot start before grant review activation`)
         if (!isTerminalStatus(state.status) && state.status !== "running") {
           if (!isLegalTransition(state.status, "running")) {
             throw new Error(`Illegal transition from ${state.status} to running`)
@@ -2464,19 +2564,23 @@ export function reduceRunState(events: RunEventEnvelope[]): CanonicalRunState | 
   for (const session of state.compactionHistory.sessions) {
     if (!session.markerEventId) continue
     const attempts = state.compactionHistory.attempts.filter((attempt) => attempt.sessionId === session.sessionId)
-    session.coverage = session.priorScopeHistory === "none" && attempts.length > 0 &&
-      attempts.every((attempt) => attempt.status !== "open") ? "complete" : "partial"
+    session.coverage =
+      session.priorScopeHistory === "none" &&
+      attempts.length > 0 &&
+      attempts.every((attempt) => attempt.status !== "open")
+        ? "complete"
+        : "partial"
   }
   state.compactionHistory.openAttemptEventIds = state.compactionHistory.attempts
     .filter((attempt) => attempt.status === "open")
     .map((attempt) => attempt.eventId)
-  state.compactionHistory.coverage = state.compactionHistory.sessions.every(
-    (session) => session.markerEventId && session.coverage === "complete",
-  ) && state.compactionHistory.openAttemptEventIds.length === 0
-    ? "complete"
-    : state.compactionHistory.sessions.some((session) => session.markerEventId)
-      ? "partial"
-      : "unavailable"
+  state.compactionHistory.coverage =
+    state.compactionHistory.sessions.every((session) => session.markerEventId && session.coverage === "complete") &&
+    state.compactionHistory.openAttemptEventIds.length === 0
+      ? "complete"
+      : state.compactionHistory.sessions.some((session) => session.markerEventId)
+        ? "partial"
+        : "unavailable"
 
   return state
 }

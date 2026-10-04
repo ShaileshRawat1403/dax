@@ -108,6 +108,8 @@ async function runJournal(
     validateAppend: async (existing, candidate) => {
       validateEnvelopeRecipe(runId, await readAuthorityRecord(runId), [...existing, candidate])
       if (
+        candidate.type === "execution_started" ||
+        candidate.type === "workflow_started" ||
         candidate.type === "approval_requested" ||
         candidate.type === "approval_resolved" ||
         candidate.type === "tool_invocation_recorded" ||
@@ -175,12 +177,36 @@ export async function appendRunEventAtTail(
  */
 export async function hasJournaledGrantReview(runId: string): Promise<boolean> {
   const events = await (await runJournal(runId)).read()
-  if (!events.length) return false
+  if (!events.length) {
+    // A failed genesis append can leave only the durable recipe. Strict marker
+    // reads refuse uncertainty; an actual absent or valid ordinary marker does
+    // not invent reviewed authority. No repair, mutation or lock occurs here.
+    const record = await readAuthorityRecord(runId)
+    if (!record || record.authority === "legacy" || record.initialization === undefined) return false
+    return parseInitialization(record.initialization, true).grantReviewIntent === "reviewed_grants"
+  }
   const state = reduceRunState(events)
   if (!state) throw new Error(`Run ${runId} has events without a canonical birth; review absence is unproven`)
-  return Boolean(
-    Object.keys(state.grantReview.requests).length || state.grantReview.published || state.grantReview.activated,
+  if (
+    state.grantReview.intent ||
+    Object.keys(state.grantReview.requests).length ||
+    state.grantReview.published ||
+    state.grantReview.activated
   )
+    return true
+  // Positive recipe evidence cannot be erased by losing a private reservation
+  // and removing intent from birth. Only this marker read has legacy failure
+  // isolation, after strict shared-Journal parsing and non-review replay succeed.
+  let record: AuthorityRecord | null
+  try {
+    record = await readAuthorityRecord(runId)
+  } catch (error) {
+    log.warn("non-review journal retains legacy marker-read isolation", { runId, error })
+    return false
+  }
+  const recipe = record?.initialization as { grantReviewIntent?: unknown } | undefined
+  // Malformed supplied review intent is still presence, never an ordinary run.
+  return recipe?.grantReviewIntent !== undefined
 }
 
 export async function readRunEvents(runId: string): Promise<RunEventEnvelope[]> {
@@ -266,6 +292,18 @@ function validateEnvelopeRecipe(runId: string, record: AuthorityRecord | null, e
   if (events.length && expected && events[0].schemaVersion !== expected) {
     throw new Error(`Conflicting initialization envelope version for run ${runId}`)
   }
+  if (events.length && events[0].type === "contract_compiled") {
+    const birth = parseInitialization(events[0].payload)
+    const rawRecipe = record?.initialization as { grantReviewIntent?: unknown } | undefined
+    // Reviewed birth cannot be erased or supplied only by a mutable marker.
+    // Historical ordinary births without this field retain their old recipe semantics.
+    if (birth.grantReviewIntent || rawRecipe?.grantReviewIntent !== undefined) {
+      const recipe = record?.initialization === undefined ? undefined : parseInitialization(record.initialization, true)
+      if (record?.authority !== "event-log" || !recipe || JSON.stringify(recipe) !== JSON.stringify(birth)) {
+        throw new Error(`Conflicting reviewed initialization intent for run ${runId}`)
+      }
+    }
+  }
 }
 
 async function readAuthorityRecord(runId: string): Promise<AuthorityRecord | null> {
@@ -330,6 +368,7 @@ function parseInitialization(value: unknown, persisted = false): Initialization 
     contractId: event.payload.contractId,
     verificationRequired: event.payload.verificationRequired ?? false,
     guardEnforcementMode: event.payload.guardEnforcementMode ?? "warn",
+    ...(event.payload.grantReviewIntent ? { grantReviewIntent: event.payload.grantReviewIntent } : {}),
   }
 }
 

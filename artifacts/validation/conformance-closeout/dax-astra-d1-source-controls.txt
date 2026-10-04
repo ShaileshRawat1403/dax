@@ -1,0 +1,146 @@
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
+import { createHash } from "node:crypto"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { resolveCapabilityAuthority } from "@/capability/authority"
+import { decideReviewedAction } from "@/capability/enforcement"
+import { proposeGrants } from "@/capability/grant-proposal"
+import { GrantReview } from "@/capability/grant-review"
+import { CapabilityActionDeniedError, recordActionResolution } from "@/capability/record-resolution"
+import { Storage } from "@/storage/storage"
+import { GrantReviewBarrierError, grantReviewPath } from "@/execution/grant-review-barrier"
+import { Config } from "@/config/config"
+import { compileWithRunId } from "@/execution/compiler"
+import { ExecutionContractV2 } from "@/execution/execution-contract"
+import { createGrantReviewedRun } from "@/execution/run-factory"
+import { MCP } from "@/mcp"
+import { mcpReadDescriptor, mcpReadDescriptorV2, mcpServerCommitment, parseMcpReadV2 } from "@/mcp/resource-identity"
+import { Instance } from "@/project/instance"
+import { appendEventOnly, resolveApprovalEvent } from "@/state/events/event-transitions"
+import { projectRunStateFromEvents, readRunEvents } from "@/state/events/run-event-store"
+
+let home: string
+let directory: string
+let previousHome: string | undefined
+
+beforeEach(async () => {
+  previousHome = process.env.DAX_TEST_HOME
+  home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "dax-grant-stage4c-v2-")))
+  process.env.DAX_TEST_HOME = home
+  directory = path.join(home, "project")
+  await fs.mkdir(directory, { recursive: true })
+  await fs.mkdir(path.join(home, ".config", "dax"), { recursive: true })
+  expect(Bun.spawnSync(["git", "init", "--quiet", directory]).exitCode).toBe(0)
+  await fs.writeFile(
+    path.join(home, ".config", "dax", "dax.json"),
+    JSON.stringify({ mcp: { gamma: { type: "remote", url: "http://127.0.0.1:9/reviewed", enabled: false } } }),
+  )
+  await Instance.disposeAll()
+  Config.global.reset()
+})
+afterEach(async () => {
+  await Instance.disposeAll()
+  Config.global.reset()
+  if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+  else process.env.DAX_TEST_HOME = previousHome
+  await fs.rm(home, { recursive: true, force: true })
+})
+
+const within = <T>(fn: () => Promise<T>) => Instance.provide({ directory, fn })
+
+function rejection(work: Promise<unknown>) {
+  return work.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+}
+
+async function activated() {
+  const { runId, revision } = await createGrantReviewedRun(
+    { request: { intent: { input: "Inspect the repository, read only." } }, availableTools: ["read"] },
+    {
+      acknowledgedExternal: ["mcp_source:resource:gamma", "mcp_source:prompt:gamma"],
+      sourceSelections: [
+        { server: "gamma", family: "resource" },
+        { server: "gamma", family: "prompt" },
+      ],
+    },
+  )
+  await resolveApprovalEvent(runId, revision.approvalId, "approved", "operator")
+  const subject = (await readRunEvents(runId))
+    .filter((event) => event.type === "approval_requested")
+    .map((event) => event.payload as { approvalId: string; contractGrantSubject?: unknown })
+    .find((payload) => payload.approvalId === revision.approvalId)!.contractGrantSubject
+  await GrantReview.publish(runId, { approvalId: revision.approvalId, subject })
+  await GrantReview.activate(runId)
+  return runId
+}
+
+
+describe("Astra independent source reviewed authority", () => {
+  test("source builds cannot borrow published remote-only activation", async () => {
+    await within(async () => {
+      const runId = await activated()
+      const before = await readRunEvents(runId)
+      let authority: unknown
+      let error: unknown
+      try { authority = await GrantReview.dispatchAuthority(runId) } catch (caught) { error = caught }
+      expect(authority).toBeUndefined()
+      expect(error).toBeDefined()
+      expect(await readRunEvents(runId)).toEqual(before)
+    })
+  })
+  test("direct source read action cannot convert remote-only activation into an allow", async () => {
+    await within(async () => {
+      const runId = await activated()
+      const before = await readRunEvents(runId)
+      const error = await rejection(recordActionResolution({
+        governedBy: { sessionID: runId }, subject: "astra_source_dispatch", path: "mcp_resource", initiator: "operator",
+        executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+        source: { server: "gamma", name: "file:///notes" },
+      }))
+      expect(error).toBeDefined()
+      expect(await readRunEvents(runId)).toEqual(before)
+    })
+  })
+  test("a lost review record cannot downgrade canonical reviewed action to compatibility", async () => {
+    await within(async () => {
+      const runId = await activated()
+      await Storage.remove(grantReviewPath(runId))
+      const before = await readRunEvents(runId)
+      let effects = 0
+      const error = await rejection(recordActionResolution({
+        governedBy: { runId }, subject: "astra_lost_review", path: "mcp_resource", initiator: "operator",
+        executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+        source: { server: "gamma", name: "file:///notes" },
+      }).then(() => { effects += 1 }))
+      expect(effects).toBe(0)
+      expect(error).toBeDefined()
+      expect(await readRunEvents(runId)).toEqual(before)
+    })
+  })
+
+  test("an old v1 artifact cannot erase review history when its marker is unreadable", async () => {
+    await within(async () => {
+      const runId = await activated()
+      const before = await readRunEvents(runId)
+      const state = await projectRunStateFromEvents(runId)
+      const { contract } = compileWithRunId({ request: { intent: { input: "Inspect source." } } }, runId)
+      contract.contractId = state!.contractId
+      await Storage.write(["execution_contract", Instance.project.id, runId], contract)
+      await Storage.remove(grantReviewPath(runId))
+      await Storage.write(["run_authority", Instance.project.id, runId, "authority.json"], {})
+      let effects = 0
+      const error = await rejection(recordActionResolution({
+        governedBy: { runId }, subject: "astra_legacy_artifact", path: "mcp_resource", initiator: "operator",
+        executor: { kind: "mcp", descriptor: mcpReadDescriptor("resource", "gamma", "file:///notes") },
+        source: { server: "gamma", name: "file:///notes" },
+      }).then(() => { effects += 1 }))
+      expect(effects).toBe(0)
+      expect(error).toBeInstanceOf(GrantReviewBarrierError)
+      expect(await Storage.read(["run_events", Instance.project.id, runId, "events.json"])).toEqual(before)
+    })
+  })
+
+})

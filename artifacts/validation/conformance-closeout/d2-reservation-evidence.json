@@ -1,0 +1,77 @@
+{
+  "sourceBase": "f2484a2f6131494d82a734b9e2326496e673f2c2",
+  "scope": "bounded reviewed creation correction before D2 exposure",
+  "toolchain": {
+    "bun": "1.4.0+34cbb9a40",
+    "sha256": "539598c775882420b9d8deb7dc14d845f20f7d26f5600c50ab067dde6ac3f3bf",
+    "frozenLockSha256": "831bad444f35a22dd8469507f15aac499809502eed5b09781d0c86ba35e642de"
+  },
+  "fullGates": {
+    "exitCode": 0,
+    "log": "d2-reservation-gates-third.log",
+    "testsPassed": 2317,
+    "failed": 0,
+    "existingSkipped": 2,
+    "assertions": 8718,
+    "files": 284,
+    "smokePassed": 5,
+    "rustPassed": 79,
+    "compiledProducerControls": 41
+  },
+  "focused": {
+    "testsPassed": 24,
+    "failed": 0,
+    "assertions": 138,
+    "files": 3,
+    "log": "d2-reservation-final-focused.log"
+  },
+  "supersededRun": "d2-reservation-gates-second.log stopped before reviewer-added source changes; not acceptance",
+  "logs": {
+    "d2-reservation-compiled.log": "4543810d1c7707bde675d0a3e4376833055cd40b5d454496a11cd34e059039ab",
+    "d2-reservation-final-focused.log": "eb142b7ddab90147d3f2059b93b7353cd2cb1473865abda44bdf3a7346560697",
+    "d2-reservation-first.log": "61630d4fb7325206772b98bf8cf8bddaf5780ac204e09eb205b32d0a1951308a",
+    "d2-reservation-format-second.log": "ddf925233ec1b7483171c0f8d579964b9c8ff6d32b83cc7d819d15dfcd0bb97b",
+    "d2-reservation-format-third.log": "941481ae1ccd75228dfaf2e409e520a2e20948e975d6ef794e535394a0deab9f",
+    "d2-reservation-format.log": "eb308001d48382b7aabcb691c9f26d1b8cdde03d6abe3eb0ec17d23ad82da11b",
+    "d2-reservation-gates-first.log": "d5613003273c9ed54a7f6cb9a1bdc39acf175d8ff12d651d61e1346a772ba92a",
+    "d2-reservation-gates-second.log": "d9d107707a06781159766416db27c6d74217cf86c19cf6a5080265e68337b6b7",
+    "d2-reservation-gates-third.log": "04a0dafd0745e1dda0f016e4e8550383fb92f0fe2be197a9267bdbea535eeb71",
+    "d2-reservation-second.log": "0d42580a8fa2c4fecf53c89a86b014e6b734ea3e78ce77707f73d30fece28dd5",
+    "d2-reservation-third.log": "2861231ac018be889f6a6aa775a0089ff1df553e22028c5008c4ea69abb2b737",
+    "d2-reservation-typecheck-first.log": "d3c2e1a95f12e76ade2365542d38ad54840bd033581171b24217cb453caf8368",
+    "d2-reservation-typecheck-second.log": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
+    "dax-astra-d2-reservation-baseline.log": "dac9fa3a013ebb5ec4357f5c49624d0c791a9516da0e99c2400f29a06e9324c6"
+  },
+  "archive": {
+    "file": "d2-reservation-raw-logs.tar.gz",
+    "sha256": "7f9f75a3f553c8621dd98bc049acea17879b8272380156b650bff61cb7747f90"
+  },
+  "sourceFiles": {
+    "packages/dax/src/conformance/contract-authority.test.ts": "2bb25208411d8d97fc6eec95dc02e84d57d2fe6e465eeefc4b3112029b713287",
+    "packages/dax/src/execution/run-factory.ts": "13d05c5e95ff10c4a0097aac9751faff36f11e61ef0d3b6cdc432b34628f57e7",
+    "packages/dax/src/state/events/event-transitions.ts": "65f41e7d19f13da1989ba87cbc4e7136fc596e006fae37a58036311bb0880dae",
+    "packages/dax/src/state/events/run-event-store.ts": "af107a50ab1068afc0f92363f4d9b3bf1b568fca9a3ef423c61ddd984bc883dd",
+    "packages/dax/src/state/events/run-event-types.ts": "e049e41c6c8b7298c56278d88a1689d6aa3699646dc2a7540f1bc1a987fe6e02",
+    "packages/dax/src/state/events/run-reducer.ts": "f2851f6c988dd42190650041bd5c5a8b5d7f737121d0aed6dd6f6270552dcc0c",
+    "packages/dax/src/conformance/grant-reservation.test.ts": "296b561eecf1a514a37c2a38391b9eea1437532a427d0ed8504589f4e6016960"
+  },
+  "independentBaseline": {
+    "file": "dax-astra-d2-reservation-control.txt",
+    "sha256": "ef2be49284e739819c11425565982a961f3449a4cdeba0d9f8c0f94c5969e3e1",
+    "source": "/private/tmp/dax-astra-opus-ws1/packages/dax/src/conformance/astra-stage4d-reservation.test.ts",
+    "reviewer": "Astra",
+    "baselinePassed": 0,
+    "baselineFailed": 1,
+    "baselineAssertions": 6
+  },
+  "independentD1ReviewDocument": {
+    "sourceCommit": "aa6801287399add064172a298ede5f63188cfcb2",
+    "path": "docs/tooling/grant-stage4d-d1-astra-review.md",
+    "sha256": "73adc813239e17d6f62e69d05cbefd50ca9887a1980a824b22ea8ae9ceeba1ef"
+  },
+  "limitations": [
+    "D2 independent exact-SHA review and three-platform CI pending",
+    "No operator API exposure",
+    "D3/D4/C2-C5 and aggregate gap closure pending"
+  ]
+}

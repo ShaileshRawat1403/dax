@@ -1,4 +1,5 @@
 import { Session } from "@/session"
+import { Identifier } from "@/id/id"
 import { SessionPrompt } from "@/session/prompt"
 import { Storage } from "@/storage/storage"
 import { Instance } from "@/project/instance"
@@ -203,8 +204,10 @@ async function startExecution(runId: string, contract: ExecutionContract): Promi
 }
 
 export async function createRunFromContract(input: RunFactoryInput): Promise<RunFactoryResult> {
-  if (input.request.workerConstraints?.conversation &&
-    (input.request.workflowHint !== "worker_run" || input.request.personaPreset?.providerHint !== "worker:antigravity")) {
+  if (
+    input.request.workerConstraints?.conversation &&
+    (input.request.workflowHint !== "worker_run" || input.request.personaPreset?.providerHint !== "worker:antigravity")
+  ) {
     throw new Error("Conversational worker execution requires the explicit AGY worker_run path.")
   }
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
@@ -366,11 +369,11 @@ export async function createRunFromContract(input: RunFactoryInput): Promise<Run
  * Stage 3: create a run that executes only under operator-reviewed capability
  * grants. Not reachable from any route or configuration.
  *
- * The review is reserved before the run has any other state, so nothing can
- * execute in it or give it a v1 contract. No contract is written to the
- * guardian. The run waits on one approval whose subject commits to the exact
- * proposal; approving and publishing it still leaves the run non-executable
- * until grant enforcement exists.
+ * Canonical reviewed intent and a private reservation precede the publicly
+ * usable, explicitly governed session. A creation crash or lost reservation
+ * cannot restore ordinary authority. No v1 contract is written to the guardian.
+ * Review, publication and activation remain necessary for execution under the
+ * common compiled-image gate.
  */
 export async function createGrantReviewedRun(
   input: RunFactoryInput,
@@ -387,21 +390,27 @@ export async function createGrantReviewedRun(
   },
 ): Promise<{ runId: string; revision: GrantReviewRevision }> {
   const title = input.request.intent.input.split("\n")[0]?.trim() || "External run"
-  const session = await Session.create({ title, permission: sessionPermissionFromPreset(input.request) })
-  const { contract } = compileWithRunId(input, session.id)
-  contract.runId = session.id
-  await GrantReview.reserve(session.id, contract.contractId)
-  await Session.bindGoverningRun(session.id, session.id)
-
+  // Compile before any durable state, then establish canonical reviewed intent
+  // before publishing a usable session. A lost private reservation can never
+  // turn a creation interrupted before the first request into an ordinary run.
+  const runId = Identifier.descending("session")
+  const { contract } = compileWithRunId(input, runId)
   await createEventAuthorityRun(
-    session.id,
+    runId,
     contract.contractId,
     contract.runtimePolicy?.postconditions?.verificationRequired === true,
     resolveGuardEnforcementMode(),
+    "reviewed_grants",
   )
-  // Queued, then straight into review: a grant review request may enter
-  // waiting_approval from the queue, so the run is never recorded as started.
-  await transitionEventAuthority(session.id, "queued", "execution_queued", {})
+  await transitionEventAuthority(runId, "queued", "execution_queued", {})
+  await GrantReview.reserve(runId, contract.contractId)
+  const session = await Session.createNext({
+    id: runId,
+    governingRunId: runId,
+    directory: Instance.directory,
+    title,
+    permission: sessionPermissionFromPreset(input.request),
+  })
 
   const proposal = await proposeGrants({
     runId: session.id,

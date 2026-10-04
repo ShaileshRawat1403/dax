@@ -144,7 +144,9 @@ A reviewed read succeeds only when:
 3. `readPublished` validates the artifact against that journal proof, including
    run/contract identity and canonical contract commitment.
 4. The current image matches every published native binding. A process restart
-   into another image cannot inherit executable authority from old activation.
+   into another image cannot inherit native grants from old activation. A compiled
+   enforcing image with only unchanged remote grants remains valid because it
+   inherits no native binding.
    Remote source changes still deny their affected actions at dispatch; start
    checks every binding, as already required. Do not recapture/connect all MCP
    sources on every guardian read.
