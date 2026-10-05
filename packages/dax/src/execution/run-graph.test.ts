@@ -2,6 +2,11 @@ import { expect, test, describe, beforeEach, afterEach } from "bun:test"
 import os from "os"
 import path from "path"
 import { mkdirSync, rmSync } from "fs"
+import { createGrantReviewedRun } from "./run-factory"
+import { Session } from "@/session"
+import { Storage } from "@/storage/storage"
+import { grantReviewPath } from "./grant-review-barrier"
+import { readRunEvents } from "@/state/events/run-event-store"
 import { createTaskGraph, addTask } from "../planner/task-graph"
 import { runGraph } from "./run-graph"
 import { ExploreOperator } from "../operators/explore"
@@ -15,14 +20,63 @@ describe("Agent Run Graph: Explore Pipeline", () => {
 
   beforeEach(() => {
     process.env.DAX_TEST_HOME = testHome
-    mkdirSync(testHome, { recursive: true })
+    mkdirSync(path.join(testHome, ".config", "dax"), { recursive: true })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await Instance.disposeAll()
     if (previousHome === undefined) delete process.env.DAX_TEST_HOME
     else process.env.DAX_TEST_HOME = previousHome
     rmSync(testHome, { recursive: true, force: true })
   })
+
+  for (const mode of ["root", "child", "lost-private-review", "malformed-session", "mismatched-session", "missing-governing-contract", "missing-session"] as const) {
+    test(`reviewed ${mode} authority refuses graph effects`, async () => {
+      const cwd = path.join(testHome, "project")
+      mkdirSync(cwd, { recursive: true })
+      await Instance.provide({ directory: cwd, fn: async () => {
+        const { runId } = await createGrantReviewedRun({
+          request: { intent: { input: "Inspect the repository, read only." } },
+          availableTools: ["read"],
+        })
+        let sessionId = runId
+        if (["child", "malformed-session", "mismatched-session", "missing-governing-contract", "missing-session"].includes(mode)) {
+          const child = await Session.createNext({ directory: cwd, parentID: runId, governingRunId: runId })
+          sessionId = child.id
+          if (mode === "malformed-session") {
+            await Storage.write(["session", Instance.project.id, child.id], { ...child, governingRunId: "not-a-session" })
+          }
+          if (mode === "mismatched-session") {
+            await Storage.write(["session", Instance.project.id, child.id], { ...child, id: "ses_unrelated", governingRunId: undefined })
+          }
+        }
+        if (mode === "missing-governing-contract") {
+          await Session.update(sessionId, (draft) => { draft.governingRunId = "ses_missing_graph_authority" })
+        }
+        if (mode === "missing-session") await Storage.remove(["session", Instance.project.id, sessionId])
+        if (mode === "lost-private-review") await Storage.remove(grantReviewPath(runId))
+        const before = await readRunEvents(runId)
+        const graph = createTaskGraph("reviewed_graph")
+        addTask(graph, {
+          id: "effect", name: "Effect", description: "Must not execute", operator_type: "controlled",
+          dependencies: [], context: {},
+        })
+        let effects = 0
+        const router = new OperatorRouter()
+        router.register({ type: "controlled", async execute() { effects++; return { success: true, output: {} } } })
+        const result = await runGraph(graph, { cwd, sessionId }, router)
+        expect(effects).toBe(0)
+        expect(result.success).toBe(false)
+        expect(result.failedTasks).toEqual(["effect"])
+        if (["malformed-session", "mismatched-session", "missing-governing-contract", "missing-session"].includes(mode)) {
+          expect(graph.tasks.get("effect")?.error).toHaveProperty("reasonCode", "authority_unreadable")
+        } else {
+          expect(graph.tasks.get("effect")?.error).toHaveProperty("code", "grant_review_non_executable")
+        }
+        expect(await readRunEvents(runId)).toEqual(before)
+      } })
+    })
+  }
 
   test("Executes a real explore pipeline in correct order", async () => {
     // 1. Setup Intent & Plan Graph

@@ -16,6 +16,17 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Task-graph authority correction — 2026-10-05
+
+Production graph dispatch previously selected an identity without consulting
+reviewed grants. [The bounded correction and reproduced controls](tooling/graph-reviewed-authority-validation.md)
+mediate root and inherited child dispatch through the shared resolver; a genuine
+compiled producer records durable denials before effects. Missing session or
+explicit governing-contract data cannot restore legacy execution. Final full gates
+pass 2,374 tests. The preceding settings compatibility correction passed
+[Ubuntu/macOS/Windows](https://github.com/ShaileshRawat1403/dax/actions/runs/37316385756).
+No additional gap closure is claimed; two candidate grant gaps remain.
+
 ## Legacy settings compatibility correction — 2026-10-05
 
 A real command control exposed new snapshot limits incorrectly constraining

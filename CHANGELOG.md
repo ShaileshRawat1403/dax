@@ -77,6 +77,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Task-graph operator dispatch now consults shared reviewed authority before
+  executor effects, including inherited child authority. Unsupported graph
+  executors are durably denied in activated reviewed runs; missing session or
+  governing-contract data cannot restore legacy execution. Explicit legacy
+  no-contract graphs retain their existing behavior. New `operator_graph`
+  resolution records require this event vocabulary; older binaries reject them.
+
 - **A tool can no longer take over a built-in by sharing its name in a governed
   session.** A contract names tools by alias, and the alias of a built-in now
   means that built-in. A plugin, custom tool or MCP tool called `read` is not

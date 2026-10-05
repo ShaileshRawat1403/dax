@@ -8,6 +8,12 @@ import { buildContextPack, OPERATOR_TYPES, type OperatorType } from "../context/
 import { Bus } from "@/bus"
 import { Lifecycle } from "@/bus/lifecycle"
 import type { RunStatus } from "@/server/run-contract"
+import { recordActionResolution, CapabilityActionDeniedError } from "@/capability/record-resolution"
+import { Session } from "@/session"
+import { Instance } from "@/project/instance"
+import { Identifier } from "@/id/id"
+import { resolveExecutionAuthority } from "./contract-guardian"
+import { GrantReviewBarrierError } from "./grant-review-barrier"
 
 /**
  * Project a task-graph status onto the run status the lifecycle bus expects.
@@ -36,6 +42,34 @@ export function runStatusForGraphStatus(status: TaskStatus): RunStatus {
       return "completed"
     case "failed":
       return "failed"
+  }
+}
+
+/** Synthetic legacy graph IDs have no session; real session references must
+ * retain their governing authority. Missing, malformed or unreadable session
+ * data must never downgrade a child to compatibility.
+ */
+async function graphAuthorityRun(sessionId: string): Promise<string> {
+  if (!Identifier.schema("session").safeParse(sessionId).success) {
+    if (sessionId.startsWith("ses") || !/^[a-zA-Z0-9_-]+$/.test(sessionId)) {
+      throw new CapabilityActionDeniedError("operator_graph", "authority_unreadable")
+    }
+    return sessionId
+  }
+  try {
+    const session = Session.Info.parse(await Session.get(sessionId))
+    if (session.id !== sessionId || session.projectID !== Instance.project.id) {
+      throw new Error("Graph session identity does not match its storage owner")
+    }
+    // An explicit child authority is never optional. Missing/invalid contracts
+    // cannot turn a governed child into a no-contract graph.
+    if (session.governingRunId !== undefined) {
+      await resolveExecutionAuthority(session.id, session.governingRunId)
+    }
+    return session.governingRunId ?? session.id
+  } catch (error) {
+    if (error instanceof GrantReviewBarrierError) throw error
+    throw new CapabilityActionDeniedError("operator_graph", "authority_unreadable")
   }
 }
 
@@ -117,6 +151,20 @@ export async function runGraph(
           stateManager && isOperatorType(operator.type)
             ? buildContextPack(stateManager.getState(), task.id, operator.type)
             : undefined
+
+        // Graph routing selects a handle; it does not confer grant authority.
+        // Reviewed root and child runs use the same durable, fail-closed lookup
+        // as other action paths. Unbound operators cannot borrow native grants.
+        await recordActionResolution({
+          governedBy: { runId: await graphAuthorityRun(ctx.sessionId) },
+          subject: "operator_graph",
+          path: "operator_graph",
+          initiator: "system",
+          executor: {
+            kind: execution.capability?.id.startsWith("custom.operator.") ? "plugin" : "builtin",
+            descriptor: execution.capability,
+          },
+        })
 
         const result = await execution.execute({
           ...ctx,

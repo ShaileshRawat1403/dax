@@ -7,6 +7,7 @@ export const INVOCATION_PATHS = ["native_tool", "batch_leaf", "mcp_tool"] as con
 /** Paths whose subject is not an invocation: an operator, prompt-time or orchestration action. */
 export const ACTION_PATHS = [
   "operator_shell",
+  "operator_graph",
   "command_shell",
   "context_attachment",
   "template_reference",

@@ -25,6 +25,9 @@ import { Hono } from "hono"
 import { RunRoutes } from "@/server/routes/run"
 import { subjectKey } from "@/capability/grant-proposal"
 import { CreateRunResponse } from "@/server/run-contract"
+import { runGraph } from "@/execution/run-graph"
+import { createTaskGraph, addTask } from "@/planner/task-graph"
+import { OperatorRouter } from "@/operators/router"
 import { RunGrantReview, RunBadRequestError, ReviewedRunRefusal } from "@/capability/reviewed-run-contract"
 
 declare const DAX_PRODUCER_VARIANT: string
@@ -242,6 +245,37 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "graph") {
+        const reviewed = await active()
+        await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+        const child = await Session.createNext({ directory, parentID: reviewed.runId, governingRunId: reviewed.runId })
+        let effects = 0
+        const router = new OperatorRouter()
+        router.register({ type: "controlled", async execute() { effects++; return { success: true, output: {} } } })
+        const run = async (sessionId: string) => {
+          const graph = createTaskGraph("graph_authority")
+          addTask(graph, { id: "effect", name: "Effect", description: "Controlled effect", operator_type: "controlled", dependencies: [], context: {} })
+          return runGraph(graph, { cwd: directory, sessionId }, router)
+        }
+        for (const sessionId of [reviewed.runId, child.id]) {
+          const before = await readRunEvents(reviewed.runId)
+          assert.equal((await run(sessionId)).success, false)
+          assert.equal(effects, 0)
+          const after = await readRunEvents(reviewed.runId)
+          assert.equal(after.length, before.length + 1)
+          assert.equal(after.at(-1)!.type, "capability_resolution_recorded")
+          assert.equal(after.at(-1)!.payload.path, "operator_graph")
+          assert.equal(after.at(-1)!.payload.enforcement, "enforced")
+          assert.equal(after.at(-1)!.payload.decision, "deny")
+          assert.equal(after.at(-1)!.payload.reasonCode, "grant_absent")
+          assert.deepEqual(reduceRunState(after), await projectRunStateFromEvents(reviewed.runId))
+        }
+        controls.push("compiled-graph-root-child-durable-denials")
+        const legacy = await Session.create({ title: "Explicit no-contract graph" })
+        assert.equal((await run(legacy.id)).success, true)
+        assert.equal(effects, 1)
+        assert.equal(providerCalls, 0)
+        controls.push("compiled-graph-no-contract-compatibility")
       } else if (phase === "api") {
         const app = new Hono().route("/runs", RunRoutes())
         const api = async (url: string, body?: unknown, status = 200) => {
