@@ -1,3 +1,4 @@
+import type { ProjectSettingsSnapshot } from "./project-settings"
 import type { JournalEventReference } from "./scope-envelope"
 import type { ProjectEventEnvelope, ProjectFact } from "./project-event-types"
 
@@ -14,6 +15,7 @@ export type ProjectState = {
   initializedAt: string
   revision: number
   facts: Record<string, ProjectFactRecord>
+  settings?: { snapshot: ProjectSettingsSnapshot; adoptedEventId: string; updatedEventId: string; updatedAt: string }
 }
 
 /** Project facts are owned by this sequence, never copied into the source run. */
@@ -35,6 +37,17 @@ export function reduceProjectState(events: ProjectEventEnvelope[]): ProjectState
     }
     if (index > 0 && event.type === "project_initialized") throw new Error("Project journal has repeated genesis")
 
+    if (event.type === "project_settings_adopted") {
+      if (state.settings) throw new Error("project_settings_already_adopted")
+      state.settings = { snapshot: event.payload.snapshot, adoptedEventId: event.eventId,
+        updatedEventId: event.eventId, updatedAt: event.occurredAt }
+    }
+    if (event.type === "project_settings_replaced") {
+      if (!state.settings || state.settings.updatedEventId !== event.payload.priorSettingsEventId)
+        throw new Error("project_settings_predecessor_mismatch")
+      state.settings = { ...state.settings, snapshot: event.payload.snapshot,
+        updatedEventId: event.eventId, updatedAt: event.occurredAt }
+    }
     if (event.type === "project_fact_promoted") {
       const fact = event.payload.fact
       if (state.facts[fact.factId]) throw new Error(`Project fact ${fact.factId} is already recorded`)

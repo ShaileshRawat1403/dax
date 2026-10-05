@@ -1,3 +1,4 @@
+import { ProjectSettingsSnapshotSchema } from "./project-settings"
 import z from "zod"
 import { ScopedEnvelopeFields, validateSourceReferences } from "./scope-envelope"
 
@@ -24,6 +25,12 @@ export type ProjectFact = z.infer<typeof ProjectFactSchema>
 
 export const ProjectEventPayloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("project_initialized"), payload: z.object({}).strict() }),
+  z.object({ type: z.literal("project_settings_adopted"), payload: z.object({
+    snapshot: ProjectSettingsSnapshotSchema, priorLegacyDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  }).strict() }),
+  z.object({ type: z.literal("project_settings_replaced"), payload: z.object({
+    snapshot: ProjectSettingsSnapshotSchema, priorSettingsEventId: z.string().min(1),
+  }).strict() }),
   z.object({ type: z.literal("project_fact_promoted"), payload: z.object({ fact: ProjectFactSchema }).strict() }),
   z.object({
     type: z.literal("project_fact_superseded"),

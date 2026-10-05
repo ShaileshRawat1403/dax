@@ -6,7 +6,7 @@ export const ProjectFactApprovalSubjectSchema = z.object({
   kind: z.literal("project_fact_change"),
   projectId: z.string().min(1),
   commandId: z.string().min(1),
-  action: z.enum(["project_fact_promoted", "project_fact_superseded", "project_fact_retired"]),
+  action: z.enum(["project_fact_promoted", "project_fact_superseded", "project_fact_retired", "project_settings_adopted", "project_settings_replaced"]),
   canonicalization: z.literal("sorted-json-v1"),
   digest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict()

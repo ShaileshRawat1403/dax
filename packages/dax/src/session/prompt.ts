@@ -3218,7 +3218,7 @@ ${
       })
     }
 
-    const prefs = await PM.list_preferences({ project_id: Instance.project.id }).catch(() => [])
+    const prefs = await PM.list_preferences({ project_id: Instance.project.id })
     const savedProfile = prefs.find((x) => x.pref_key === "audit.profile")?.pref_value
     const resolvedProfile = Audit.Profile.safeParse(savedProfile).success
       ? (savedProfile as Audit.Profile)

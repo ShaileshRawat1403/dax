@@ -1,3 +1,8 @@
+import { readProjectEvents } from "@/state/events/project-journal"
+import { reduceProjectState } from "@/state/events/project-reducer"
+import { ProjectSettingsSnapshotSchema } from "@/state/events/project-settings"
+import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
+import { acquireProjectLock } from "@/util/fs-lock"
 import { Database } from "bun:sqlite"
 import { Global } from "@/global"
 import { fn } from "@/util/fn"
@@ -129,6 +134,48 @@ export namespace PM {
   const RuleAction = z.enum(["allow", "deny", "ask"])
   const RuleSource = z.enum(["default", "user", "override"])
 
+  async function approvedSettings(project_id: string) {
+    const state = reduceProjectState(await readProjectEvents(project_id))
+    if (!state?.settings) return undefined
+    const updatedAt = Date.parse(state.settings.updatedAt)
+    const initializedAt = Date.parse(state.initializedAt)
+    if (!Number.isFinite(updatedAt) || !Number.isFinite(initializedAt))
+      throw new Error("project_settings_invalid_timestamp")
+    return { state, settings: state.settings, updatedAt, initializedAt }
+  }
+
+  async function withLegacySettingsWrite<T>(project_id: string, write: () => T): Promise<T> {
+    const lock = await acquireProjectLock(project_id)
+    try {
+      if (await approvedSettings(project_id)) throw new Error("project_settings_review_required")
+      return write()
+    } finally { await lock.dispose() }
+  }
+
+  /** Historical data only: never infer approval from these rows. */
+  export const legacy_settings_snapshot = fn(z.object({ project_id: z.string() }), async (input) => {
+    const preferences = db.prepare("select pref_key, pref_value from pm_preferences where project_id = ? order by pref_key")
+      .all(input.project_id) as Array<{ pref_key: string; pref_value: string }>
+    const constraints = db.prepare("select id, rule_type, pattern, action, source, created_at from pm_constraints where project_id = ? order by id")
+      .all(input.project_id) as Array<{ id: string; rule_type: string; pattern: string; action: string; source: string; created_at: number }>
+    const snapshot = ProjectSettingsSnapshotSchema.parse({ riskMode: readState(input.project_id)?.risk_mode ?? "balanced",
+      preferences: preferences.map((item) => ({ key: item.pref_key, value: item.pref_value })),
+      constraints: constraints.map((item) => ({ id: item.id, ruleType: item.rule_type,
+        pattern: item.pattern, action: item.action, source: item.source, createdAt: item.created_at })),
+    })
+    const { digest } = await computeCanonicalCommitment({ projectId: input.project_id, snapshot })
+    return { snapshot, digest }
+  })
+
+  export const settings_review_input = fn(z.object({ project_id: z.string() }), async (input) => {
+    const approved = await approvedSettings(input.project_id)
+    if (approved) return { authority: "journal" as const, snapshot: approved.settings.snapshot,
+      priorSettingsEventId: approved.settings.updatedEventId, legacyDigest: null }
+    const legacy = await legacy_settings_snapshot(input)
+    return { authority: "legacy" as const, snapshot: legacy.snapshot,
+      priorSettingsEventId: null, legacyDigest: legacy.digest }
+  })
+
   const TouchStateInput = z.object({
     project_id: z.string(),
     risk_mode: RiskMode.optional(),
@@ -195,13 +242,19 @@ export namespace PM {
     }
   }
 
-  export const touch_state = fn(TouchStateInput, async (input) => touch(input.project_id, input.risk_mode))
+  export const touch_state = fn(TouchStateInput, async (input) => {
+    if (input.risk_mode === undefined && await approvedSettings(input.project_id)) return get_state(input)
+    return withLegacySettingsWrite(input.project_id, () => touch(input.project_id, input.risk_mode))
+  })
 
   export const get_state = fn(
     z.object({
       project_id: z.string(),
     }),
     async (input) => {
+      const approved = await approvedSettings(input.project_id)
+      if (approved) return { project_id: input.project_id, pm_rev: approved.state.revision,
+        risk_mode: approved.settings.snapshot.riskMode, created_at: approved.initializedAt, updated_at: approved.updatedAt }
       return readState(input.project_id) ?? defaultState(input.project_id)
     },
   )
@@ -212,7 +265,7 @@ export namespace PM {
       pref_key: z.string(),
       pref_value: z.string(),
     }),
-    async (input) => {
+    async (input) => withLegacySettingsWrite(input.project_id, () => {
       touch(input.project_id, undefined, true)
       const now = Date.now()
       db.prepare(
@@ -222,7 +275,7 @@ export namespace PM {
          do update set pref_value = excluded.pref_value, updated_at = excluded.updated_at`,
       ).run(input.project_id, input.pref_key, input.pref_value, now)
       return { ...input, updated_at: now }
-    },
+    }),
   )
 
   export const list_preferences = fn(
@@ -230,6 +283,9 @@ export namespace PM {
       project_id: z.string(),
     }),
     async (input) => {
+      const approved = await approvedSettings(input.project_id)
+      if (approved) return approved.settings.snapshot.preferences.map((item) => ({ project_id: input.project_id,
+        pref_key: item.key, pref_value: item.value, updated_at: approved.updatedAt }))
       return db
         .prepare("select project_id, pref_key, pref_value, updated_at from pm_preferences where project_id = ?")
         .all(input.project_id) as Array<{
@@ -249,7 +305,7 @@ export namespace PM {
       action: RuleAction,
       source: RuleSource.default("user"),
     }),
-    async (input) => {
+    async (input) => withLegacySettingsWrite(input.project_id, () => {
       touch(input.project_id, undefined, true)
       const row = {
         id: ulid(),
@@ -261,7 +317,7 @@ export namespace PM {
          values (?, ?, ?, ?, ?, ?, ?)`,
       ).run(row.id, row.project_id, row.rule_type, row.pattern, row.action, row.source, row.created_at)
       return row
-    },
+    }),
   )
 
   export const list_constraints = fn(
@@ -270,6 +326,11 @@ export namespace PM {
       limit: z.number().int().positive().max(500).default(100),
     }),
     async (input) => {
+      const approved = await approvedSettings(input.project_id)
+      if (approved) return approved.settings.snapshot.constraints
+        .map((item) => ({ id: item.id, project_id: input.project_id, rule_type: item.ruleType,
+          pattern: item.pattern, action: item.action, source: item.source, created_at: item.createdAt }))
+        .sort((a, b) => b.created_at - a.created_at || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)).slice(0, input.limit)
       return db
         .prepare(
           `select id, project_id, rule_type, pattern, action, source, created_at

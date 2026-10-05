@@ -42,6 +42,13 @@ function projectJournal(projectId = Instance.project.id): Journal<ProjectEventEn
       if (candidate.type !== "project_initialized") {
         const sources = await verifySourceReferences(existing, candidate.sourceRefs ?? [])
         await verifyApprovedChange(candidate, sources)
+        if (candidate.type === "project_settings_adopted") {
+          // SQL is consulted only at the explicit cutover, never during replay.
+          const { PM } = await import("@/pm")
+          const legacy = await PM.legacy_settings_snapshot({ project_id: candidate.projectId })
+          if (legacy.digest !== candidate.payload.priorLegacyDigest)
+            throw new Error("project_settings_legacy_changed")
+        }
       }
       reduceProjectState([...existing, candidate])
     },

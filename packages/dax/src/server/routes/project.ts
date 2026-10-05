@@ -1,3 +1,4 @@
+import { PM } from "@/pm"
 import { Hono } from "hono"
 import { describeRoute, validator } from "hono-openapi"
 import { resolver } from "hono-openapi"
@@ -58,6 +59,9 @@ export const ProjectRoutes = lazy(() =>
         return c.json(Instance.project)
       },
     )
+    .get("/settings/review-input", privilegedMutation,
+      describeRoute({ summary: "Inspect project settings for explicit operator adoption", operationId: "project.settings.reviewInput" }),
+      async (c) => c.json(await PM.settings_review_input({ project_id: Instance.project.id })))
     .post("/facts/candidates", privilegedMutation,
       describeRoute({ summary: "Propose a durable project fact", operationId: "project.fact.propose",
         description: "Creates a non-authoritative candidate and a digest-bound approval request; does not promote it." }),

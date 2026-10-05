@@ -205,7 +205,7 @@ export namespace Audit {
     const constraints = await PM.list_constraints({
       project_id: Instance.project.id,
       limit: 1,
-    }).catch(() => [])
+    })
     if ((constraints?.length ?? 0) === 0) {
       findings.push(
         finding({
