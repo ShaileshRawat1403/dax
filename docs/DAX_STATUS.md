@@ -106,6 +106,10 @@ closure of capability vocabulary and intrinsic properties. Four candidate
 entries remain: contract grants, shared enforcement, project-journal production
 integration and governed memory. Accepted main still has eight open gaps.
 See [current coverage evidence](tooling/legacy-runtime-descriptors-validation.md).
+The next candidate routes fresh intent memory through approved project-journal
+facts, with [reader validation](tooling/project-memory-reader-validation.md).
+Operator promotion and broader PM migration remain unfinished; no additional
+gap closure is claimed.
 The [run-envelope cutover record](tooling/run-envelope-cutover-validation.md)
 documents proposed closure of the journal primitive and scope-aware envelope
 entries; the later descriptor correction leaves four candidate entries. Contract grants/enforcement and governed

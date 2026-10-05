@@ -7,6 +7,7 @@ import { monotonicFactory } from "ulid"
 import z from "zod"
 import fs from "fs"
 import * as Chain from "./chain"
+import { readApprovedProjectMemory } from "./approved-memory"
 
 export namespace PM {
   const log = Log.create({ service: "pm" })
@@ -636,6 +637,12 @@ export namespace PM {
     const active = row?.n ?? 0
     return { active_entries: active, status: active > 0 ? "populated" : "uninitialised" }
   })
+
+  /** Only durable operator-approved facts are eligible for future-session input.
+   * Legacy SQLite rows are historical data, never inferred approvals. Read errors
+   * propagate; unavailable authority must not silently become an empty journal.
+   */
+  export const approved_memory = fn(ListMemoryInput, readApprovedProjectMemory)
 
   export const list_memory = fn(ListMemoryInput, async (input) => {
     touch(input.project_id)

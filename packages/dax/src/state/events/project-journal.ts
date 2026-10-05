@@ -19,8 +19,7 @@ export class ProjectFactAuthorizationError extends Error {
   }
 }
 
-function projectJournal(): Journal<ProjectEventEnvelope, NewProjectEvent> {
-  const projectId = Instance.project.id
+function projectJournal(projectId = Instance.project.id): Journal<ProjectEventEnvelope, NewProjectEvent> {
   return new Journal<ProjectEventEnvelope, NewProjectEvent>({
     scope: { type: "project", id: projectId },
     path: ["project_events", projectId],
@@ -52,14 +51,14 @@ function projectJournal(): Journal<ProjectEventEnvelope, NewProjectEvent> {
   })
 }
 
-export async function readProjectEvents(): Promise<ProjectEventEnvelope[]> {
-  const events = await projectJournal().read()
+export async function readProjectEvents(projectId = Instance.project.id): Promise<ProjectEventEnvelope[]> {
+  const events = await projectJournal(projectId).read()
   reduceProjectState(events)
   return events
 }
 
-export async function projectStateFromEvents(): Promise<ProjectState | null> {
-  return reduceProjectState(await readProjectEvents())
+export async function projectStateFromEvents(projectId = Instance.project.id): Promise<ProjectState | null> {
+  return reduceProjectState(await readProjectEvents(projectId))
 }
 
 /** A failed first write leaves no authority; a retry writes exactly one genesis. */

@@ -420,11 +420,13 @@ export namespace SessionPrompt {
     if (input.noReply !== true && existingMessages.length === 0) {
       const rawPrompt = input.parts.find((p) => p.type === "text")?.text || ""
       if (rawPrompt) {
+        // Resolve approved memory outside the optional intent-model error handler:
+        // unreadable authority must stop dispatch, never fall back to legacy rows.
+        const projectMemories = (await PM.approved_memory({
+          project_id: Instance.project.id,
+          limit: 10,
+        })).entries
         try {
-          const projectMemories = await PM.list_memory({
-            project_id: Instance.project.id,
-            limit: 10,
-          }).catch(() => [])
           const intent = await interpretIntent(rawPrompt, {
             cwd: Instance.directory,
             session_id: input.sessionID,

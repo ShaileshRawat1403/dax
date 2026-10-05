@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Instance } from "@/project/instance"
+import { readApprovedProjectMemory } from "@/pm/approved-memory"
 import { Storage } from "@/storage/storage"
 import { acquireProjectLock, acquireRunLock } from "@/util/fs-lock"
 import { appendRunEventAtTail, clearRunEvents, initializeRunEventAuthority, readRunEvents } from "./run-event-store"
@@ -85,6 +86,34 @@ function fact(factId: string, content = "A reviewed project decision"): ProjectF
 }
 
 describe("project-owned journal", () => {
+  test("production memory projection uses only active journal facts and survives source removal", async () => {
+    await Instance.provide({ directory: repoRoot, async fn() {
+      const project_id = Instance.project.id
+      const read = () => readApprovedProjectMemory({ project_id, limit: 10 })
+      expect(await read()).toEqual({ coverage: "unavailable", revision: null, entries: [] })
+      const promote = { type: "project_fact_promoted", payload: { fact: fact("memory_a") } } as const
+      const source = await approvedSource(promote, "memory_promote")
+      await appendProjectEvent({ ...promote, commandId: "memory_promote", sourceRefs: [source] })
+      expect((await read()).entries.map((entry) => entry.id)).toEqual(["memory_a"])
+      const replace = { type: "project_fact_superseded", payload: {
+        priorFactId: "memory_a", replacement: fact("memory_b", "Updated memory"),
+      } } as const
+      const replacementSource = await approvedSource(replace, "memory_replace")
+      await appendProjectEvent({ ...replace, commandId: "memory_replace", sourceRefs: [replacementSource] })
+      await clearRunEvents(source.scopeId)
+      await clearRunEvents(replacementSource.scopeId)
+      await Instance.disposeAll()
+      expect((await read()).entries).toMatchObject([{ id: "memory_b", content: "Updated memory" }])
+      const retire = { type: "project_fact_retired", payload: { factId: "memory_b", reason: "No longer applicable" } } as const
+      const retiredSource = await approvedSource(retire, "memory_retire")
+      await appendProjectEvent({ ...retire, commandId: "memory_retire", sourceRefs: [retiredSource] })
+      expect((await read()).entries).toEqual([])
+      expect((await read()).coverage).toBe("journal")
+      await Storage.write(["project_events", project_id, "events.json"], [{ broken: true }])
+      expect(await rejection(read())).toBeInstanceOf(Error)
+    } })
+  })
+
   test("promote, supersede, and retire replay from the project journal after source-run removal", async () => {
     let before: Awaited<ReturnType<typeof projectStateFromEvents>> = null
     await Instance.provide({
