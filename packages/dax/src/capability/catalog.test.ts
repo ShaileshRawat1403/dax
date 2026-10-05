@@ -117,6 +117,8 @@ describe("composed capability catalog", () => {
   test("the static vocabulary is exactly the declared DAX-dispatched population", () => {
     const vocabulary = CapabilityCatalog.staticVocabulary()
     expect(vocabulary.families()).toEqual([
+      { name: "custom_tool", namespace: "custom.tool.v1.", enumeration: "on_demand" },
+      { name: "custom_operator", namespace: "custom.operator.v1.", enumeration: "on_demand" },
       { name: "native_tool", namespace: "native.tool.", enumeration: "listed" },
       { name: "operator", namespace: "operator.", enumeration: "listed" },
       { name: "workflow", namespace: "workflow.", enumeration: "listed" },
@@ -137,6 +139,8 @@ describe("composed capability catalog", () => {
       vocabulary.families().map((family) => [family.name, ids(vocabulary, family.namespace).length]),
     )
     expect(counts).toEqual({
+      custom_tool: 0,
+      custom_operator: 0,
       native_tool: 22,
       operator: 9,
       workflow: 6,
@@ -163,7 +167,7 @@ describe("composed capability catalog", () => {
     expect(Object.keys(vocabulary).sort()).toEqual(["covers", "families", "familyOf", "list", "require"])
   })
 
-  test("an instance snapshot lists real loader and MCP tools and never the legacy registration", async () => {
+  test("an instance snapshot lists loader and MCP tools and covers on-demand caller registrations", async () => {
     await globalTool("probe")
     const directory = await project("alpha", { mcp: { remote: await mcpServer() } })
     await Instance.provide({
@@ -200,9 +204,11 @@ describe("composed capability catalog", () => {
           const identity = ToolRegistry.executionIdentity(tool)
           if (identity.kind === "builtin") expect(vocabulary.require(identity.capability!.id)).toBeDefined()
         }
-        // Legacy registration stays dispatchable and stays outside the vocabulary.
+        // Caller descriptors are on demand: logical registration, not code attestation.
         const legacy = ToolRegistry.executionIdentity(tools.find((tool) => tool.id === "legacy")!)
-        expect(legacy.capability).toBeUndefined()
+        expect(legacy.capability?.id.startsWith("custom.tool.v1.")).toBe(true)
+        expect(vocabulary.covers(legacy.capability!.id)).toBe(true)
+        expect(vocabulary.familyOf(legacy.capability!.id)).toBe("custom_tool")
       },
     })
   })

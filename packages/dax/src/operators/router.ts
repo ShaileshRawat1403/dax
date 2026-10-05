@@ -1,3 +1,4 @@
+import { customCapability } from "@/capability/custom-identity"
 import type { Operator } from "./base"
 import type { PlannedTask } from "../planner/task-graph"
 import { ExploreOperator } from "./explore"
@@ -16,6 +17,7 @@ import { CapabilityIdentityError } from "@/capability/dynamic-identity"
 
 export class OperatorRouter {
   private operators: Map<string, Operator> = new Map()
+  private customBindings = new Map<string, { receiver: Operator; execute: Operator["execute"]; capability: CapabilityDescriptor }>()
   private bindings: Map<string, BuiltinOperatorBinding> = new Map()
 
   register(operator: Operator) {
@@ -24,8 +26,13 @@ export class OperatorRouter {
       throw new CapabilityIdentityError("ambiguous")
     }
     const binding = bindBuiltinOperator(operator, type)
+    const custom = binding ? undefined : {
+      receiver: operator, execute: operator.execute, capability: customCapability("operator", type),
+    }
+    if (custom && typeof custom.execute !== "function") throw new CapabilityIdentityError("malformed")
     this.operators.set(type, operator)
     if (binding) this.bindings.set(type, binding)
+    else this.customBindings.set(type, Object.freeze(custom!))
   }
 
   getOperator(type: string): Operator | undefined {
@@ -48,9 +55,20 @@ export class OperatorRouter {
     if (this.operators.get(task.operator_type) !== operator) throw new CapabilityIdentityError("stale")
     const binding = this.bindings.get(task.operator_type)
     if (!binding) {
-      // Existing caller-supplied graph operators are a separate, unenrolled API.
-      if (operator.type !== task.operator_type) throw new CapabilityIdentityError("changed")
-      return { execute: (context) => operator.execute(task, context) }
+      const custom = this.customBindings.get(task.operator_type)
+      const check = () => {
+        if (!custom || custom.receiver !== operator || operator.type !== task.operator_type || operator.execute !== custom.execute) {
+          throw new CapabilityIdentityError("changed")
+        }
+      }
+      check()
+      return {
+        capability: custom!.capability,
+        execute: (context) => {
+          check()
+          return custom!.execute.call(custom!.receiver, task, context)
+        },
+      }
     }
     const capability = requireBuiltinOperatorCapability(binding, operator, task)
     return {

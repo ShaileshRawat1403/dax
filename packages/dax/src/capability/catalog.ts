@@ -1,3 +1,4 @@
+import { CUSTOM_TOOL_NAMESPACE, CUSTOM_OPERATOR_NAMESPACE } from "./custom-identity"
 import { MCP } from "@/mcp"
 import {
   MCP_PROMPT_NAMESPACE,
@@ -28,13 +29,15 @@ import { composeCapabilityVocabulary, type CapabilityFamily } from "./vocabulary
  *
  * Not in the population, by decision: trusted plugin loading and hooks (identity
  * cannot contain arbitrary in-process code), formatter/LSP/MCP process launches
- * (service lifecycle effects), and legacy `ToolRegistry.register` and
- * caller-supplied graph operators (compatible, unenrolled).
+ * (service lifecycle effects). Caller registrations receive conservative
+ * on-demand descriptions; they do not establish source or code attestation.
  */
 function staticFamilies(): CapabilityFamily[] {
   const listed = (name: string, namespace: string, descriptors: readonly CapabilityDescriptor[]) =>
     ({ name, namespace, enumeration: "listed", descriptors }) satisfies CapabilityFamily
   return [
+    { name: "custom_tool", namespace: CUSTOM_TOOL_NAMESPACE, enumeration: "on_demand", descriptors: [] },
+    { name: "custom_operator", namespace: CUSTOM_OPERATOR_NAMESPACE, enumeration: "on_demand", descriptors: [] },
     listed("native_tool", "native.tool.", nativeCapabilities.list()),
     listed("operator", "operator.", listBuiltinOperatorCapabilities()),
     listed("workflow", "workflow.", listFixedWorkflowCapabilities()),
