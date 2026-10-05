@@ -706,17 +706,20 @@ describe("loader-backed plugin capability identity at real dispatch", () => {
     })
   })
 
-  test("legacy replacement and native override remain compatible and unenrolled", async () => {
+  test("legacy replacement and native override remain compatible with caller identities", async () => {
     await Instance.provide({
       directory,
       async fn() {
         await ToolRegistry.register(legacy("read"))
         const original = await item("read")
-        expect(ToolRegistry.executionIdentity(original).capability).toBeUndefined()
+        expect(ToolRegistry.executionIdentity(original).capability?.id).toStartWith("custom.tool.v1.")
+        const originalCapability = ToolRegistry.executionIdentity(original).capability?.id
         await ToolRegistry.register(legacy("read"))
         const current = await item("read")
         expect(ToolRegistry.executionIdentity(current).kind).toBe("plugin")
-        expect(ToolRegistry.executionIdentity(current).capability).toBeUndefined()
+        expect(ToolRegistry.executionIdentity(current).capability?.id).toBe(
+          originalCapability,
+        )
         expect(() => ToolRegistry.executionIdentity(original)).toThrow("stale")
         expect(Tool.parseResult("read", await current.execute({}, ctx())).output).toBe("legacy")
       },

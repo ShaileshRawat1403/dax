@@ -422,7 +422,7 @@ describe("native capability enrollment at production dispatch", () => {
 
   // Before grant stage 1 the same-name plugin replaced native read at dispatch.
   // Under a contract the alias names the built-in, so the built-in runs.
-  test("production built-ins are enrolled; a same-name plugin stays unenrolled and cannot take the alias under a contract", async () => {
+  test("production built-ins are enrolled; a same-name plugin keeps a distinct caller identity and cannot take the alias under a contract", async () => {
     await Instance.provide({
       directory,
       async fn() {
@@ -450,7 +450,8 @@ describe("native capability enrollment at production dispatch", () => {
         expect(reads).toHaveLength(2)
         expect(ToolRegistry.executionIdentity(reads[0]).capability?.id).toBe("native.tool.read")
         expect(ToolRegistry.executionIdentity(reads[1]).kind).toBe("plugin")
-        expect(ToolRegistry.executionIdentity(reads[1]).capability).toBeUndefined()
+        expect(ToolRegistry.executionIdentity(reads[1]).capability?.id).toStartWith("custom.tool.v1.")
+        expect(ToolRegistry.executionIdentity(reads[1]).capability?.id).not.toBe("native.tool.read")
         const session = await Session.create({ title: "Plugin collision" })
         await Session.update(session.id, (draft) => {
           draft.permission = [{ permission: "*", pattern: "*", action: "allow" }]
@@ -484,7 +485,7 @@ describe("native capability enrollment at production dispatch", () => {
     expect(error.message).toContain("Unknown or changed native executor definition")
   })
 
-  test("unenrolled custom initializer retains its original receiver", async () => {
+  test("caller-described custom initializer retains its original receiver", async () => {
     await Instance.provide({
       directory,
       async fn() {
@@ -505,13 +506,15 @@ describe("native capability enrollment at production dispatch", () => {
         const item = (await ToolRegistry.tools({ modelID: "", providerID: "" })).find((item) => item.id === custom.id)!
         expect(item.description).toBe(custom.id)
         expect(ToolRegistry.executionIdentity(item).kind).toBe("plugin")
-        expect(ToolRegistry.executionIdentity(item).capability).toBeUndefined()
+        expect(ToolRegistry.executionIdentity(item).capability).toMatchObject({
+          riskClass: "high", scopeSupport: "opaque", requiresVerification: true,
+        })
       },
     })
   })
 
   for (const route of ["direct", "batch"] as const) {
-    test(`${route}: unenrolled custom executor retains its initialized receiver`, async () => {
+    test(`${route}: caller-described custom executor retains its initialized receiver`, async () => {
       await Instance.provide({
         directory,
         async fn() {

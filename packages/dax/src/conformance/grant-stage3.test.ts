@@ -15,6 +15,9 @@ import {
 import { GrantReview, GrantReviewError } from "@/capability/grant-review"
 import { captureReviewSnapshot } from "@/capability/grant-review-snapshot"
 import { nativeCapabilities } from "@/capability/registry"
+import { ToolRegistry } from "@/tool/registry"
+import { Tool } from "@/tool/tool"
+import z from "zod"
 import { Config } from "@/config/config"
 import type { ContractGrantApprovalSubject } from "@/state/events/contract-grant-approval"
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
@@ -670,6 +673,25 @@ describe("capture reads the current catalog and publication checks it afresh", (
     )
     return file
   }
+
+  test("a caller descriptor does not invent a reviewed implementation binding", async () => {
+    await within(async () => {
+      await ToolRegistry.register(Tool.define("caller_probe", {
+        description: "Caller registration",
+        parameters: z.object({}),
+        result: Tool.Result,
+        async execute() { throw new Error("review must not execute the caller") },
+      }))
+      const item = (await ToolRegistry.tools({ modelID: "", providerID: "" })).find((item) => item.id === "caller_probe")!
+      const id = ToolRegistry.executionIdentity(item).capability!.id
+      expect(id).toStartWith("custom.tool.v1.")
+      const captured = await captureReviewSnapshot(contract())
+      expect(captured.tools.find((entry) => entry.alias === "caller_probe")).toEqual({ family: "legacy", alias: "caller_probe" })
+      const proposal = await propose(contract(), captured, undefined, [id])
+      expect(proposal.excluded).toContainEqual({ alias: "caller_probe", reason: "legacy_unenrolled" })
+      expect(subjects(proposal)).not.toContain(id)
+    })
+  })
 
   test("a cold capture sees an enrolled loader plugin as a plugin, not a legacy executor", async () => {
     await probe("initial")

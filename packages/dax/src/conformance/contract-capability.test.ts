@@ -47,9 +47,9 @@ import { WorkflowRegistry } from "@/workflows/registry"
  *
  * The initial v1.3.0 specification was structural. Every DAX-dispatched family
  * now resolves through one composed vocabulary, checked below against the
- * production resolvers. The aggregate vocabulary/property gaps remain open
- * because legacy custom tools and caller-supplied graph operators still
- * dispatch without a descriptor.
+ * production resolvers. Caller registrations now carry conservative logical descriptors. The ledger
+ * remains a candidate until comprehensive validation and integration; these
+ * descriptors establish neither implementation attestation nor authority.
  */
 
 

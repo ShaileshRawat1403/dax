@@ -47,7 +47,8 @@ export type ReviewToolEntry =
       /** The listed definition and timeout, canonicalized. */
       definition: string
     }
-  /** An executor with no descriptor. It cannot be granted and is listed as excluded. */
+  /** An executor without a reviewed implementation binding. A conservative runtime descriptor
+   * does not establish that binding; it cannot be granted and is listed as excluded. */
   | { family: "legacy"; alias: string }
 
 /** A configured MCP server, without secret values: header and environment names only. */
@@ -247,7 +248,7 @@ export function matchesReviewedVerification(
  * - A filesystem-capable capability is granted only with reviewed roots; without
  *   them it is listed as needing scope. Run scope for it is never proposed.
  * - A delegation capability is listed as needing scope: a v1 contract names no agents.
- * - An executor with no descriptor is listed as excluded.
+ * - An executor without a reviewed implementation binding is listed as excluded.
  * - A capability with no supported binding is listed as unbindable. One bound
  *   only as an external source is listed as needing trust, unless the operator
  *   acknowledged it in the inputs, and is then granted with that acknowledgement.

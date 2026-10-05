@@ -785,7 +785,7 @@ describe("the shared lookup records its conclusion and enforces nothing", () => 
     })
   })
 
-  test("a legacy custom tool is recorded as unenrolled, with no identity invented for it", async () => {
+  test("a caller identity is descriptive and preserves legacy shadow authorization", async () => {
     await Instance.provide({
       directory,
       async fn() {
@@ -808,8 +808,8 @@ describe("the shared lookup records its conclusion and enforces nothing", () => 
         await dispatch(session.id, "legacy_probe", {})
         expect(executed).toBe(1)
         const [shadow] = await journal(session.id)
-        expect(shadow).toMatchObject({ kind: "shadow", tool: "legacy_probe", enrolled: false, decision: "allow" })
-        expect("capabilityId" in shadow).toBe(false)
+        expect(shadow).toMatchObject({ kind: "shadow", tool: "legacy_probe", enrolled: true, decision: "allow" })
+        expect(shadow.capabilityId).toStartWith("custom.tool.v1.")
       },
     })
   })
