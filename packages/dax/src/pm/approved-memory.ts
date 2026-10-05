@@ -25,7 +25,8 @@ export async function readApprovedProjectMemory(input: {
         title: fact.title,
         content: fact.content,
         tags: [...fact.tags],
-        source: "user" as const,
+        // This names the projection producer, not the original fact author.
+        source: "system" as const,
         created_at,
         event_id: fact.promotedEventId,
         source_refs: fact.sourceRefs.map((ref) => ({ ...ref })),

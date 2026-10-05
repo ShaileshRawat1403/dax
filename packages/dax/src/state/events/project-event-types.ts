@@ -22,7 +22,7 @@ const ProjectFactSchema = z.object({
 
 export type ProjectFact = z.infer<typeof ProjectFactSchema>
 
-const ProjectEventPayloadSchema = z.discriminatedUnion("type", [
+export const ProjectEventPayloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("project_initialized"), payload: z.object({}).strict() }),
   z.object({ type: z.literal("project_fact_promoted"), payload: z.object({ fact: ProjectFactSchema }).strict() }),
   z.object({

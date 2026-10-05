@@ -31,8 +31,6 @@ export const KNOWN_GAPS = {
     "Operator-reviewed v2 grants run through the opt-in governed path, while v1 compatibility is retained; reviewed implementation bindings for plugin, local MCP, worker, verification and source-build native families remain incomplete",
   "scope.project-journal":
     "A project-owned journal replays approved facts after source-run removal, but production PM reads/writes and an operator review flow have not migrated to its authority",
-  "memory.no-producer":
-    "Project memory is read by intent interpretation on every session but no production code writes it; what may be promoted into memory is an open governance decision",
   "inv5.grant-resolution":
     "Activated reviewed runs use shared fail-closed resolution and durable enforcement records; complete production coverage and usable reviewed bindings across every declared execution family still require acceptance",
 } as const

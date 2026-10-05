@@ -16,6 +16,17 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Operator-reviewed memory candidate — 2026-10-05
+
+The feature candidate now exposes protected project-fact proposal, exact-digest
+operator review, and durable publication. Fresh production intent reads approved
+journal memory; retirement removes it from subsequent sessions. Candidate memory
+closure leaves three candidate gaps: contract grants, shared enforcement, and
+remaining project-journal production integration. Published main still has eight
+accepted gaps. Legacy SQL preferences and constraints are not migrated or promoted.
+See [the producer protocol and validation](tooling/project-memory-producer-validation.md).
+There is no new memory UI, release, or main integration in this slice.
+
 ## Execution ownership — 2026-10-04
 
 The maintainer transferred the remaining conformance implementation to Codex. Astra

@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { Instance } from "@/project/instance"
+import { Session } from "@/session"
+import { SessionPrompt } from "@/session/prompt"
+import { Provider } from "@/provider/provider"
+import { LLM } from "@/session/llm"
+import { ProjectRoutes } from "@/server/routes/project"
+import { applyReviewedProjectFact, readProjectFactCandidate, proposeProjectFact, reviewProjectFact } from "@/pm/project-fact-producer"
 import { readApprovedProjectMemory } from "@/pm/approved-memory"
 import { Storage } from "@/storage/storage"
 import { acquireProjectLock, acquireRunLock } from "@/util/fs-lock"
@@ -20,6 +26,7 @@ beforeEach(async () => {
   previousHome = process.env.DAX_TEST_HOME
   testHome = await mkdtemp(path.join(os.tmpdir(), "dax-project-journal-"))
   process.env.DAX_TEST_HOME = testHome
+  await mkdir(path.join(testHome, ".config", "dax"), { recursive: true })
   await Instance.disposeAll()
 })
 afterEach(async () => {
@@ -86,6 +93,122 @@ function fact(factId: string, content = "A reviewed project decision"): ProjectF
 }
 
 describe("project-owned journal", () => {
+  test("fresh production prompt consumes approved memory, while a corrupt journal stops it", async () => {
+    await Instance.provide({ directory: repoRoot, async fn() {
+      const change = { type: "project_fact_promoted", payload: { fact: fact("fresh_memory", "Use the approved fixture convention") } } as const
+      const source = await approvedSource(change, "fresh_memory_promote")
+      await appendProjectEvent({ ...change, sourceRefs: [source], commandId: "fresh_memory_promote" })
+      const model = spyOn(Provider, "defaultModel").mockRejectedValue(new Error("no intent model in this fixture"))
+      const stream = spyOn(LLM, "stream").mockRejectedValue(new Error("controlled provider boundary"))
+      try {
+        const fresh = await Session.create({ title: "Fresh memory consumer" })
+        let providerFailure: unknown
+        await SessionPrompt.prompt({ sessionID: fresh.id,
+          model: { providerID: "missing-memory-fixture", modelID: "fixture" },
+          parts: [{ type: "text", text: "Inspect this repository" }] }).catch((error) => {
+          providerFailure = error
+        })
+        expect(Provider.ModelNotFoundError.isInstance(providerFailure)).toBe(true)
+        expect(JSON.stringify((await Session.get(fresh.id)).state_v2?.intent)).toContain("Use the approved fixture convention")
+        expect(stream).not.toHaveBeenCalled()
+        const corrupt = await Session.create({ title: "Corrupt memory consumer" })
+        await Storage.write(["project_events", Instance.project.id, "events.json"], [{ broken: true }])
+        const error = await rejection(SessionPrompt.prompt({ sessionID: corrupt.id,
+          model: { providerID: "missing-memory-fixture", modelID: "fixture" },
+          parts: [{ type: "text", text: "Inspect this repository" }] }))
+        expect(error.message).toContain("malformed event")
+        expect((await Session.get(corrupt.id)).state_v2?.intent).toBeUndefined()
+        expect(stream).not.toHaveBeenCalled()
+      } finally { model.mockRestore(); stream.mockRestore() }
+    } })
+  }, 20_000)
+
+  test("candidate concurrency and interrupted promotion preserve exact reviewed authority", async () => {
+    await Instance.provide({ directory: repoRoot, async fn() {
+      const run = await runSource()
+      await appendRunEventAtTail(run.scopeId, { type: "execution_queued", payload: {} })
+      await appendRunEventAtTail(run.scopeId, { type: "workflow_started", payload: {} })
+      const candidateId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+      const proposal = (content: string) => proposeProjectFact({ runId: run.scopeId, candidateId,
+        change: { type: "project_fact_promoted", payload: { fact: fact("concurrent_memory", content) } } })
+      const outcomes = await Promise.allSettled([proposal("first"), proposal("second")])
+      expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1)
+      expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1)
+      const candidate = await readProjectFactCandidate(candidateId)
+      const before = await readRunEvents(run.scopeId)
+      await proposeProjectFact({ runId: run.scopeId, candidateId, change: candidate.change })
+      expect(await readRunEvents(run.scopeId)).toEqual(before)
+      expect(await rejection(reviewProjectFact({ candidateId, actor: "operator", decision: "approved",
+        digest: `sha256:${"0".repeat(64)}` }))).toBeInstanceOf(Error)
+      expect(await readProjectEvents()).toEqual([])
+      expect(await readRunEvents(run.scopeId)).toEqual(before)
+      const originalRename = Storage.rename
+      const fault = spyOn(Storage, "rename").mockImplementation(async (from, to) => {
+        if (from[0] === "project_events") throw new Error("injected promotion persistence failure")
+        return originalRename(from, to)
+      })
+      try {
+        expect((await rejection(reviewProjectFact({ candidateId, actor: "operator", decision: "approved",
+          digest: candidate.subject.digest }))).message).toContain("persistence failure")
+      } finally { fault.mockRestore() }
+      expect(await readProjectEvents()).toEqual([])
+      const decision = (await readRunEvents(run.scopeId)).find((event) => event.type === "approval_resolved")
+      expect(decision).toBeDefined()
+      await Instance.disposeAll()
+      await reviewProjectFact({ candidateId, actor: "operator", decision: "approved", digest: candidate.subject.digest })
+      const copies = await Promise.all([applyReviewedProjectFact(candidateId), applyReviewedProjectFact(candidateId)])
+      expect(copies[0].eventId).toBe(copies[1].eventId)
+      expect((await readProjectEvents()).length).toBe(2)
+    } })
+  }, 20_000)
+
+  test("production API review promotes exactly once and rejects changed or denied candidates", async () => {
+    await Instance.provide({ directory: repoRoot, async fn() {
+      const run = await runSource()
+      await appendRunEventAtTail(run.scopeId, { type: "execution_queued", payload: {} })
+      await appendRunEventAtTail(run.scopeId, { type: "workflow_started", payload: {} })
+      const candidateId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+      const change = { type: "project_fact_promoted", payload: { fact: fact("api_memory", "private-memory-fixture") } }
+      const app = ProjectRoutes()
+      const post = (route: string, value: unknown) => app.request(`http://dax.internal${route}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value),
+      })
+      expect((await post("/facts/candidates", { runId: run.scopeId, candidateId, change })).status).toBe(200)
+      const candidate = await readProjectFactCandidate(candidateId)
+      expect(JSON.stringify(await readRunEvents(run.scopeId))).not.toContain("private-memory-fixture")
+      expect((await readProjectEvents()).length).toBe(0)
+      expect(await rejection(applyReviewedProjectFact(candidateId))).toBeInstanceOf(Error)
+      const approved = await post(`/facts/candidates/${candidateId}/review`, {
+        actor: "test-operator", digest: candidate.subject.digest, decision: "approved",
+      })
+      expect(approved.status).toBe(200)
+      const promoted = await approved.json() as { eventId: string }
+      expect((await applyReviewedProjectFact(candidateId)).eventId).toBe(promoted.eventId)
+      expect((await readProjectEvents()).length).toBe(2)
+      expect((await readApprovedProjectMemory({ project_id: Instance.project.id, limit: 10 })).entries[0].content).toBe("private-memory-fixture")
+      await clearRunEvents(run.scopeId)
+      expect((await applyReviewedProjectFact(candidateId)).eventId).toBe(promoted.eventId)
+
+      const deniedRun = await runSource()
+      await appendRunEventAtTail(deniedRun.scopeId, { type: "execution_queued", payload: {} })
+      await appendRunEventAtTail(deniedRun.scopeId, { type: "workflow_started", payload: {} })
+      const deniedId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+      expect((await post("/facts/candidates", { runId: deniedRun.scopeId, candidateId: deniedId,
+        change: { type: "project_fact_promoted", payload: { fact: fact("denied_memory") } } })).status).toBe(200)
+      const denied = await readProjectFactCandidate(deniedId)
+      expect((await post(`/facts/candidates/${deniedId}/review`, {
+        actor: "test-operator", digest: denied.subject.digest, decision: "rejected",
+      })).status).toBe(200)
+      expect(await rejection(applyReviewedProjectFact(deniedId))).toBeInstanceOf(Error)
+      expect((await readProjectEvents()).length).toBe(2)
+      await Storage.write(["project_fact_candidates", Instance.project.id, deniedId], {
+        ...denied, change: { ...denied.change, payload: { fact: fact("tampered_memory") } },
+      })
+      expect(await rejection(readProjectFactCandidate(deniedId))).toBeInstanceOf(Error)
+      expect((await readProjectEvents()).length).toBe(2)
+    } })
+  }, 20_000)
+
   test("production memory projection uses only active journal facts and survives source removal", async () => {
     await Instance.provide({ directory: repoRoot, async fn() {
       const project_id = Instance.project.id
@@ -112,7 +235,7 @@ describe("project-owned journal", () => {
       await Storage.write(["project_events", project_id, "events.json"], [{ broken: true }])
       expect(await rejection(read())).toBeInstanceOf(Error)
     } })
-  })
+  }, 20_000)
 
   test("promote, supersede, and retire replay from the project journal after source-run removal", async () => {
     let before: Awaited<ReturnType<typeof projectStateFromEvents>> = null
