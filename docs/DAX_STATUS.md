@@ -16,6 +16,14 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Agent import lifecycle correction — 2026-10-05
+
+Settings candidate CI passed Ubuntu/macOS but Windows hit the unchanged Agent
+cold-import callback deadline. [The correction and retained failure](tooling/agent-import-lifecycle-validation.md)
+move normal module loading to discovery and add a separately owned bounded cold
+import probe. It changes no production behavior and claims no new gap closure.
+The Windows slowdown's underlying cause remains unestablished.
+
 ## Project-settings authority candidate — 2026-10-05
 
 Explicit operator adoption now switches effective preference, constraint and risk
