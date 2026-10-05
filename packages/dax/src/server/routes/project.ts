@@ -13,7 +13,7 @@ import { privilegedMutation } from "../transport-security"
 export const ProjectRoutes = lazy(() =>
   new Hono()
     .onError((error, c) => {
-      if (error.message.startsWith("project_fact_")) return c.json({ error: error.message }, 409)
+      if (error.message.startsWith("project_fact_") || error.message.startsWith("project_settings_")) return c.json({ error: error.message }, 409)
       throw error
     })
     .get(
