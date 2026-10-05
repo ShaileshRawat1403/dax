@@ -4,9 +4,8 @@
 
 The caller-registration descriptor correction proposes closure of capability
 vocabulary and intrinsic properties. The operator-reviewed memory producer adds
-a proposed memory closure. Together with the journal cutover, three candidate
-gaps remain: reviewed contract grants, shared enforcement and project-journal
-production integration. These are candidate
+a proposed memory closure. Together with explicit approved project-settings cutover, two candidate
+gaps remain: reviewed contract grants and shared enforcement. These are candidate
 measurements; published main still has eight accepted open gaps. Runtime
 identities grant no permission and do not attest arbitrary caller code.
 Older delivery descriptions below retain their historical context.

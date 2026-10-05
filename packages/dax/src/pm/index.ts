@@ -439,7 +439,9 @@ export namespace PM {
       contract_hash: z.string().optional(),
     }),
     async (input) => {
-      const state = touch(input.project_id)
+      // Telemetry cites the effective journal revision after enrollment.
+      const approved = await approvedSettings(input.project_id)
+      const state = approved ? await get_state({ project_id: input.project_id }) : touch(input.project_id)
       const id = ulid()
       const created_at = Date.now()
       const ts = new Date(created_at).toISOString()

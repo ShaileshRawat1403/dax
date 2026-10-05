@@ -2,13 +2,17 @@ import { RUN_EVENT_TYPES } from "@/state/events/run-event-types"
 import { ProjectEventPayloadSchema } from "@/state/events/project-event-types"
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import { join } from "node:path"
 import os from "node:os"
 import { Instance } from "@/project/instance"
 import { initializeRunEventAuthority, readRunEvents } from "@/state/events/run-event-store"
 import { appendProjectEvent, initializeProjectJournal, readProjectEvents } from "@/state/events/project-journal"
-import { expectGap } from "./known-gaps"
+import { PM } from "@/pm"
+import { Session } from "@/session"
+import { SessionPrompt } from "@/session/prompt"
+import { proposeProjectFact, reviewProjectFact } from "@/pm/project-fact-producer"
+import { clearRunEvents } from "@/state/events/run-event-store"
 
 /**
  * Invariant 7 — Scope Authority.
@@ -168,14 +172,40 @@ describe("invariant 7 — scope authority", () => {
     }
   })
 
-  test("production project-memory reads and writes have not migrated to the project journal", () => {
-    // The standalone journal is not yet the PM producer/consumer. Keep this
-    // tracking check until a governed operator flow uses it end to end.
-    expectGap("scope.project-journal", () => {
-      const pm = source("pm/index.ts")
-      expect(pm).toContain("appendProjectEvent(")
-      expect(pm).toContain("projectStateFromEvents(")
-    })
+  test("reviewed project settings outlive their source run and have one effective authority", async () => {
+    const testHome = await mkdtemp(join(os.tmpdir(), "dax-project-settings-authority-"))
+    await mkdir(join(testHome, ".config", "dax"), { recursive: true })
+    const previousHome = process.env.DAX_TEST_HOME
+    process.env.DAX_TEST_HOME = testHome
+    try {
+      await Instance.provide({ directory: join(import.meta.dir, "../../../../.."), async fn() {
+        const owner = await Session.create({ title: "Review project settings" })
+        await SessionPrompt.ensureCanonicalRunBirth({ sessionID: owner.id, intent: "Review project settings" })
+        const project_id = Instance.project.id
+        const legacy = await PM.settings_review_input({ project_id })
+        const candidate = await proposeProjectFact({ runId: owner.id,
+          candidateId: `pfc_${crypto.randomUUID().replaceAll("-", "")}`, change: {
+            type: "project_settings_adopted", payload: { priorLegacyDigest: legacy.legacyDigest!,
+              snapshot: { riskMode: "conservative", preferences: [{ key: "authority", value: "reviewed" }], constraints: [] } },
+          } })
+        expect((await PM.settings_review_input({ project_id })).authority).toBe("legacy")
+        await reviewProjectFact({ candidateId: candidate.candidateId, digest: candidate.subject.digest,
+          actor: "operator", decision: "approved" })
+        await clearRunEvents(owner.id)
+        expect((await PM.list_preferences({ project_id })).map((item) => item.pref_value)).toEqual(["reviewed"])
+        expect((await PM.settings_review_input({ project_id })).authority).toBe("journal")
+        let failure: unknown
+        try { await PM.set_preference({ project_id, pref_key: "authority", pref_value: "unreviewed" }) }
+        catch (error) { failure = error }
+        expect((failure as Error).message).toBe("project_settings_review_required")
+        expect((await readProjectEvents()).filter((event) => event.type === "project_settings_adopted")).toHaveLength(1)
+      } })
+    } finally {
+      await Instance.disposeAll()
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      await rm(testHome, { recursive: true, force: true })
+    }
   })
 
   test("no state transition is authoritative in two scopes at once", () => {

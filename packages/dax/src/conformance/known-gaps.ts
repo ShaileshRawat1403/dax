@@ -29,8 +29,6 @@
 export const KNOWN_GAPS = {
   "inv5.contract-grants":
     "Operator-reviewed v2 grants run through the opt-in governed path, while v1 compatibility is retained; reviewed implementation bindings for plugin, local MCP, worker, verification and source-build native families remain incomplete",
-  "scope.project-journal":
-    "A project-owned journal replays approved facts after source-run removal, approved memory uses the operator review flow, while production SQL constraints and preferences have not migrated to this authority",
   "inv5.grant-resolution":
     "Activated reviewed runs use shared fail-closed resolution and durable enforcement records; complete production coverage and usable reviewed bindings across every declared execution family still require acceptance",
 } as const

@@ -6,6 +6,7 @@ import { RAOLedger } from "../../rao"
 import { Instance } from "../../project/instance"
 import { Audit } from "@/governance"
 import { PM } from "../../pm"
+import { PROJECT_SETTINGS_REVIEW_GUIDE } from "@/pm/settings-review-guide"
 import { Config } from "../../config/config"
 import { Session } from "../../session"
 import { Locale } from "../../util/locale"
@@ -109,6 +110,10 @@ export const AuditCommand = cmd({
         handler: async (args) => {
           await bootstrap(process.cwd(), async () => {
             const value = String(args.value)
+            if ((await PM.settings_review_input({ project_id: Instance.project.id })).authority === "journal") {
+              console.log(PROJECT_SETTINGS_REVIEW_GUIDE)
+              return
+            }
             await PM.set_preference({
               project_id: Instance.project.id,
               pref_key: "audit.profile",

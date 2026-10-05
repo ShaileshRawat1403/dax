@@ -16,6 +16,19 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Project-settings authority candidate — 2026-10-05
+
+Explicit operator adoption now switches effective preference, constraint and risk
+readers to the project journal. Legacy projects stay unchanged; enrolled legacy
+writes refuse and explain exact-digest review. Concurrent replacements, stale
+legacy/predecessor inputs, denial, failed publication/retry, restart, source-run
+retention and malformed-authority controls pass. The scope tracking check now
+uses production transitions rather than source-text guesses. This proposes
+closure of `scope.project-journal`, leaving two candidate grant gaps; accepted
+published main remains eight pending complete integration. Current validation is
+recorded [here](tooling/project-settings-validation.md). Settings grant no execution
+authority. Historical SQL data is preserved and not silently promoted.
+
 ## Operator-reviewed memory candidate — 2026-10-05
 
 The feature candidate now exposes protected project-fact proposal, exact-digest

@@ -54,6 +54,7 @@ import { iife } from "@/util/iife"
 import { Shell } from "@/shell/shell"
 import { Truncate } from "@/tool/truncation"
 import { PM } from "@/pm"
+import { PROJECT_SETTINGS_REVIEW_GUIDE } from "@/pm/settings-review-guide"
 import { createReflectionSummary } from "./reflection-pruning"
 import { formatPMList, formatPMRules } from "@/pm/format"
 import { Audit } from "@/governance"
@@ -3140,6 +3141,9 @@ ${
             text: "Usage: /pm rules add <never_touch|require_approval|deny_tool|allow_tool> <pattern> <allow|deny|ask>",
           })
         }
+        if ((await PM.settings_review_input({ project_id })).authority === "journal") {
+          return respondCommandText({ input, commandName: Command.Default.PM, text: PROJECT_SETTINGS_REVIEW_GUIDE })
+        }
         const row = await PM.add_constraint({
           project_id,
           rule_type: rule_type as "never_touch" | "require_approval" | "deny_tool" | "allow_tool",
@@ -3205,6 +3209,9 @@ ${
           commandName: Command.Default.AUDIT,
           text: "Usage: /audit profile <strict|balanced|advisory>",
         })
+      }
+      if ((await PM.settings_review_input({ project_id: Instance.project.id })).authority === "journal") {
+        return respondCommandText({ input, commandName: Command.Default.AUDIT, text: PROJECT_SETTINGS_REVIEW_GUIDE })
       }
       await PM.set_preference({
         project_id: Instance.project.id,

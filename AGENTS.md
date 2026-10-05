@@ -22,7 +22,14 @@ Read this file first when working in `/Users/Shailesh/MYAIAGENTS/dax`.
 - Change DAX for companion repos only when the change improves DAX as a real standalone product or a clearly intentional external interface.
 - Keep the default mental model intact: `DAX = core product`, `Picobot = ingress`, `Soothsayer = operator plane`.
 
-## Current ownership
+## Current ownership — 2026-10-05
+
+- The maintainer authorized Codex to finish DAX under sole ownership; no separate Astra reviewer is active.
+- Historical reviewer acceptances below keep their bounded scope. Solo validation is not independent cross-validation.
+- Separate feature branches, exact-commit platform CI and evidence discipline remain required. Two-agent relay rules apply only when another agent is active.
+- Read [docs/DAX_STATUS.md](./docs/DAX_STATUS.md) for current candidate status. Frozen Sol/Opus worktrees remain preserved.
+
+### Historical ownership — superseded by the sole-owner authorization above
 
 - From 2026-10-04, the maintainer transferred the remaining conformance implementation to Codex. Astra remains the architecture and merge reviewer. Claude Opus 5.5's implementation is frozen at its handover ([docs/HANDOVER_OPUS_TO_CODEX.md](./docs/HANDOVER_OPUS_TO_CODEX.md)); `feat/conformance-execution-opus` is preserved and no longer receives commits. Codex works on its own branch and worktree. Opus is available for independent review of Codex's authority changes when the maintainer relays them. The maintainer relays every message and merges.
 - This supersedes the 2026-09-30 arrangement, under which Opus implemented and Sol was frozen. Sol's implementation stays frozen; its branches are preserved and stay Sol-owned. The 2026-09-19 Claude-to-Codex handover, Sol's 2026-09-30 handover and Opus's 2026-10-04 handover are preserved as historical records.
