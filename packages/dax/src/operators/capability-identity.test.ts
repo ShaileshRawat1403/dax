@@ -209,7 +209,7 @@ describe("built-in graph operator identity", () => {
       .toThrow("Capability identity rejected: changed")
   })
 
-  test("legacy custom operator remains explicitly unenrolled", async () => {
+  test("legacy custom operator retains dispatch with a conservative descriptor", async () => {
     let effects = 0
     const custom: Operator = {
       type: "custom",
@@ -221,9 +221,28 @@ describe("built-in graph operator identity", () => {
     const router = new OperatorRouter()
     router.register(custom)
     const graph = task("custom")
-    expect(router.execution(graph.tasks.get("first")!, custom).capability).toBeUndefined()
+    expect(router.execution(graph.tasks.get("first")!, custom).capability).toMatchObject({
+      riskClass: "high", scopeSupport: "opaque", requiresVerification: true,
+    })
     const result = await dispatch(graph, router)
     expect(result.success).toBe(true)
     expect(effects).toBe(1)
   })
+  test("a custom operator mutated after selection is refused before effects", async () => {
+    let effects = 0
+    const custom: Operator = { type: "custom", execute: async () => { effects++; return { success: true, output: {} } } }
+    const router = new OperatorRouter()
+    router.register(custom)
+    const selected = router.execution(task("custom").tasks.get("first")!, custom)
+    custom.execute = async () => { effects++; return { success: true, output: {} } }
+    expect(() => selected.execute({ cwd: process.cwd(), sessionId: "custom-changed" })).toThrow(CapabilityIdentityError)
+    expect(effects).toBe(0)
+  })
+
+  test("malformed custom registration publishes no operator", () => {
+    const router = new OperatorRouter()
+    expect(() => router.register({ type: "bad\uD800", execute: async () => ({ success: true, output: {} }) })).toThrow(CapabilityIdentityError)
+    expect(router.getOperator("bad\uD800")).toBeUndefined()
+  })
+
 })

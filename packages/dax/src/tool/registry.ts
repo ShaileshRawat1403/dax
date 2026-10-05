@@ -1,3 +1,4 @@
+import { customCapability } from "@/capability/custom-identity"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
 import { EditTool } from "./edit"
@@ -299,6 +300,7 @@ export namespace ToolRegistry {
       const id = info.id
       const init = info.init
       dynamicDefinitions.set(info, {
+        capability: customCapability("tool", id),
         check() {
           checks[found.length + enrolled.length + index]()
           if (Instance.directory !== s.directory) throw new CapabilityIdentityError("stale")
@@ -555,7 +557,7 @@ export namespace ToolRegistry {
     custom.push(tool)
   }
 
-  /** Static opt-in identity. Existing register(tool) stays compatible and unenrolled. */
+  /** Opt-in source metadata. Legacy register(tool) has only a conservative registration identity. */
   export async function registerEnrolled<Parameters extends z.ZodType, Result extends z.ZodType>(
     tool: EnrolledCustomTool<Parameters, Result>,
   ) {

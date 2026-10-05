@@ -189,10 +189,10 @@ describe("invariant 5 — contract-defined authority", () => {
     })
   })
 
-  test("aggregate vocabulary/properties remain open: legacy executors dispatch without a descriptor", async () => {
+  test("legacy executors have conservative validated descriptors in the composed vocabulary", async () => {
     await withInstance(async () => {
-      // Kept compatible by decision. The legacy path may have external users,
-      // so it is neither rejected nor silently enrolled; it keeps both gaps open.
+      // Descriptive registration identity preserves the API and adds no grant.
+      // This is not origin or implementation attestation.
       await ToolRegistry.register(
         Tool.define("capability-gap-probe", {
           description: "Unenrolled legacy executor",
@@ -215,17 +215,15 @@ describe("invariant 5 — contract-defined authority", () => {
       expect(typeof legacyOperator.execute).toBe("function")
 
       const vocabulary = await CapabilityCatalog.snapshot()
-      expectGap("inv5.capability-vocabulary", () => {
-        for (const identity of [legacyTool, legacyOperator]) {
-          expect(identity.capability?.id).toBeDefined()
-          expect(vocabulary.covers(identity.capability!.id)).toBe(true)
-        }
-      })
-      expectGap("inv5.capability-properties", () => {
-        for (const identity of [legacyTool, legacyOperator]) {
-          expect(CapabilityDescriptor.safeParse(identity.capability).success).toBe(true)
-        }
-      })
+      for (const identity of [legacyTool, legacyOperator]) {
+        expect(identity.capability?.id).toBeDefined()
+        expect(vocabulary.covers(identity.capability!.id)).toBe(true)
+      }
+      for (const identity of [legacyTool, legacyOperator]) {
+        expect(CapabilityDescriptor.safeParse(identity.capability).success).toBe(true)
+        expect(identity.capability).toMatchObject({ riskClass: "high", scopeSupport: "opaque", requiresVerification: true })
+        expect(Object.isFrozen(identity.capability)).toBe(true)
+      }
     })
   })
 
