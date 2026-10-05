@@ -32,8 +32,9 @@ responses or generated SDK types. The SDK request union also omitted the
 - A full pinned Bun 1.4.0 `release:gates` attempt reached all checks and then
   recorded **2,274 passed, 2 skipped, 65 failed, 1 error**. The failures were
   retained in `/private/tmp/dax-d2-api-release-gates-third.log`; the dominant
-  cause was ambient `EADDRINUSE` from concurrent MCP/compiled fixtures, with
-  separate host-only proxy and seatbelt failures. This is not reported as a
+  symptom was `EADDRINUSE` from MCP/compiled fixtures, with
+  separate host-only proxy and seatbelt failures. Concurrent resource exhaustion
+  was not established. This is not reported as a
   green full gate.
 
 The earlier seven test-only lint failures at `77422f5` were corrected in

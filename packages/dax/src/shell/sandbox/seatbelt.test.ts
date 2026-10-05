@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import os from "node:os"
 import { SeatbeltSandbox } from "./seatbelt"
 
 function profileOf(argv: string[]): string {
@@ -26,6 +27,7 @@ test("the wrapper is argv, and the command is a single element", async () => {
 test.skipIf(process.platform !== "darwin")("non-strict seatbelt denies an unlisted executable", async () => {
   const profile = profileOf(await new SeatbeltSandbox(false).wrap("echo ok", "/tmp"))
   const allowed = Bun.spawn(["/usr/bin/sandbox-exec", "-p", profile, "/bin/sh", "-c", "echo allowed"], {
+    cwd: os.homedir(),
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -33,6 +35,7 @@ test.skipIf(process.platform !== "darwin")("non-strict seatbelt denies an unlist
   expect(await new Response(allowed.stdout).text()).toBe("allowed\n")
   expect(await allowed.exited).toBe(0)
   const proc = Bun.spawn(["/usr/bin/sandbox-exec", "-p", profile, "/usr/bin/true"], {
+    cwd: os.homedir(),
     stdout: "pipe",
     stderr: "pipe",
   })

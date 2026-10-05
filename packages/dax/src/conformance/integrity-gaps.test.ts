@@ -310,13 +310,17 @@ describe("initialization integrity", () => {
         })
         const stderr = new Response(child.stderr).text()
         try {
+          const readyDeadline = Date.now() + 30_000
           const ready = (async () => {
             while (!(await Bun.file(readyPath).exists())) {
               if (child.exitCode !== null) throw new Error(await stderr)
+              if (Date.now() >= readyDeadline) {
+                throw new Error(`Child did not reach the lock attempt within 30s (pid ${child.pid})`)
+              }
               await Bun.sleep(10)
             }
           })()
-          expect(await completesWithin(ready, 3000)).toBe(true)
+          await ready
           expect(await completesWithin(child.exited, 250)).toBe(false)
           // Simulate the marker publication while its run lock is held. The
           // child must re-evaluate mutability only after the lock is released.
@@ -325,7 +329,7 @@ describe("initialization integrity", () => {
           })
           await lock.dispose()
           released = true
-          expect(await completesWithin(child.exited, 3000)).toBe(true)
+          expect(await completesWithin(child.exited, 10_000)).toBe(true)
           expect(await child.exited).toBe(0)
           expect(await ContractGuardian.get(session.id)).toEqual(contract)
         } finally {
@@ -336,5 +340,5 @@ describe("initialization integrity", () => {
         }
       },
     })
-  })
+  }, 60_000)
 })

@@ -34,6 +34,22 @@ const directory = path.join(home, "project")
 const evidence = path.join(directory, "evidence.txt")
 const sentinel = path.join(directory, "shell-effect")
 let providerCalls = 0
+async function awaitRunCompletion(runId: string) {
+  const deadline = Date.now() + 30_000
+  while (true) {
+    const state = await projectRunStateFromEvents(runId)
+    if (state?.status === "completed" && SessionStatus.get(runId).type === "idle") return state
+    assert.ok(
+      state && !["failed", "cancelled"].includes(state.status),
+      `Run terminated before completion: ${JSON.stringify(state)}`,
+    )
+    assert.ok(
+      Date.now() < deadline,
+      `Completion deadline exceeded: ${JSON.stringify({ state, activity: SessionStatus.get(runId), providerCalls })}`,
+    )
+    await Bun.sleep(25)
+  }
+}
 const model = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -386,14 +402,11 @@ try {
         )
         assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409])
         assert.equal((await journal()).filter((event) => event.type === "execution_started").length, 1)
-        for (let index = 0; index < 200 && (providerCalls === 0 || SessionStatus.get(runId).type !== "idle"); index++) {
-          await new Promise((resolve) => setTimeout(resolve, 25))
-        }
+        const completedR2 = await awaitRunCompletion(runId)
         assert.ok(providerCalls > 0)
         assert.equal(SessionStatus.get(runId).type, "idle")
         await api(`/${runId}/grant-review/start`, { expected: review.expected }, 409)
         assert.equal((await journal()).filter((event) => event.type === "execution_started").length, 1)
-        const completedR2 = (await projectRunStateFromEvents(runId))!
         assert.equal(completedR2.status, "completed")
         assert.equal(supersededReviewApprovals(completedR2, review.expected.approvalId).size, 1)
         assert.deepEqual(reduceRunState(await journal()), completedR2)
@@ -415,13 +428,7 @@ try {
           actorId: "fixture-operator",
         })
         await api(`/${multi.runId}/grant-review/start`, { expected: multiReview.expected })
-        for (
-          let index = 0;
-          index < 200 && (await projectRunStateFromEvents(multi.runId))?.status !== "completed";
-          index++
-        )
-          await new Promise((resolve) => setTimeout(resolve, 25))
-        const multiState = (await projectRunStateFromEvents(multi.runId))!
+        const multiState = await awaitRunCompletion(multi.runId)
         assert.equal(multiState.status, "completed")
         assert.equal(supersededReviewApprovals(multiState, multiReview.expected.approvalId).size, 2)
         assert.deepEqual(reduceRunState(await readRunEvents(multi.runId)), multiState)

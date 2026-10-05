@@ -1,5 +1,15 @@
 # DAX current ownership and release work
 
+## Sole ownership — 2026-10-05
+
+The maintainer confirmed that no separate Astra reviewer is active and authorized
+Codex to finish the remaining work with solo validation. Historical Astra
+acceptances below retain their original scope; current corrections are not
+independent cross-validation. Feature branches and exact-commit CI remain required.
+The Windows reliability correction builds on D2 API correction `82440ca` and is
+documented in [the lifecycle validation record](tooling/windows-lifecycle-validation.md).
+It does not itself close an aggregate conformance gap or approve a release.
+
 ## Execution ownership — 2026-10-04
 
 The maintainer transferred the remaining conformance implementation to Codex. Astra
