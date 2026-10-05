@@ -1,3 +1,4 @@
+import type { RunStatus } from "@/state/events/run-reducer"
 import type { ExecutionReflection } from "@/session/state-types"
 import { pendingApprovals } from "./approvals"
 
@@ -13,6 +14,7 @@ export type WorkstationLifecycle =
   | "blocked"
   | "completed"
   | "failed"
+  | "cancelled"
 
 export type WorkstationTrustPosture = "clear" | "review_needed" | "blocked"
 
@@ -97,6 +99,7 @@ export function deriveWorkstationState(input: {
   stage: "exploring" | "thinking" | "planning" | "executing" | "verifying" | "waiting" | "retrying" | "done"
   stageReason: string
   sessionStatusType: "busy" | "idle" | "retry" | "delayed"
+  canonicalStatus?: RunStatus
   goal?: string
   todo: Array<{ content: string; status: string }>
   approvals: Array<{ label?: string; reason?: string; status?: string }>
@@ -140,7 +143,7 @@ export function deriveWorkstationState(input: {
   const approvalsPending = actionableApprovals.length + input.questions
   const evidencePresent = input.artifacts.length > 0 || input.diffCount > 0
   const trustPosture = deriveTrustPosture({
-    lifecycleHint: input.stage === "done" && approvalsPending === 0 ? "completed" : undefined,
+    lifecycleHint: (input.canonicalStatus ? input.canonicalStatus === "completed" : input.stage === "done") && approvalsPending === 0 ? "completed" : undefined,
     approvalsPending,
     evidencePresent,
     auditStatus: input.audit?.status,
@@ -149,6 +152,7 @@ export function deriveWorkstationState(input: {
   })
   const lifecycle = deriveLifecycle({
     stage: input.stage,
+    canonicalStatus: input.canonicalStatus,
     sessionStatusType: input.sessionStatusType,
     approvalsPending,
     alertLevel: input.alert?.level === "none" ? undefined : input.alert?.level,
@@ -169,7 +173,7 @@ export function deriveWorkstationState(input: {
     sessionID: input.sessionID,
     lifecycle,
     lifecycleLabel: labelLifecycle(lifecycle),
-    phase: derivePhase(input.stage),
+    phase: input.stage === "done" && input.canonicalStatus && input.canonicalStatus !== "completed" ? "execute" : derivePhase(input.stage),
     goal: input.goal,
     currentStep,
     trustPosture,
@@ -252,11 +256,15 @@ function derivePhase(
 
 function deriveLifecycle(input: {
   stage: WorkstationStage
+  canonicalStatus?: RunStatus
   sessionStatusType: "busy" | "idle" | "retry" | "delayed"
   approvalsPending: number
   alertLevel?: "info" | "warning" | "error"
 }): WorkstationLifecycle {
-  if (input.approvalsPending > 0 || input.stage === "waiting") return "awaiting_approval"
+  if (input.canonicalStatus === "completed") return "completed"
+  if (input.canonicalStatus === "failed") return "failed"
+  if (input.canonicalStatus === "cancelled") return "cancelled"
+  if (input.canonicalStatus === "waiting_approval" || input.approvalsPending > 0 || input.stage === "waiting") return "awaiting_approval"
   if (input.sessionStatusType === "delayed") return "waiting_for_capacity"
   if (input.sessionStatusType === "retry" || input.stage === "retrying") return "retrying"
   if (input.alertLevel === "error") return "blocked"
@@ -265,7 +273,7 @@ function deriveLifecycle(input: {
   if (input.stage === "executing") return "executing"
   if (input.stage === "verifying") return "verifying"
   if (input.stage === "done" && input.alertLevel === "warning") return "ready"
-  if (input.stage === "done") return "completed"
+  if (input.stage === "done") return input.canonicalStatus ? "ready" : "completed"
   if (input.sessionStatusType === "idle") return "ready"
   return "ready"
 }
@@ -406,6 +414,8 @@ export function labelLifecycle(lifecycle: WorkstationLifecycle) {
       return "Blocked"
     case "completed":
       return "Completed"
+    case "cancelled":
+      return "Cancelled"
     case "failed":
       return "Failed"
   }

@@ -784,7 +784,8 @@ export function Session() {
         sessionID: route.sessionID,
         stage: displayStageState().stage,
         stageReason: displayStageState().reason,
-        sessionStatusType: summary.status === "running" ? "busy" : "idle",
+        sessionStatusType: sessionStatusType(),
+        canonicalStatus: summary.status,
         goal: summary.outcome?.summaryText || s?.title,
         todo: todo().map((t) => ({ content: t.content, status: t.status })),
         reflection: (s?.state_v2 as any)?.reflection,
@@ -1316,6 +1317,7 @@ export function Session() {
           persona={activePersona()}
           onCyclePersona={cyclePersona}
           emphasis={showPane() ? "muted" : "normal"}
+          activity={sessionStatusType()}
           busy={sessionStatusType() === "busy" || sessionStatusType() === "retry" || sessionStatusType() === "delayed"}
           contextPercent={sessionTelemetry().contextPercent ?? undefined}
           onReviewDecision={() => selectPaneMode("approvals")}

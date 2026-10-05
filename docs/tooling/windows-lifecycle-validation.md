@@ -39,6 +39,9 @@ logs cover the host-enabled full run's single seatbelt cwd failure, and the `/tm
 which also failed because the profile does not cover its canonical private path.
 These were not resolved by skips, retries-until-green, or broader production grants.
 Earlier Windows recovery/process-tree timeouts remain unproven and open for
-separate diagnosis. Exact-commit Windows/macOS/Ubuntu CI is still required.
+separate diagnosis. Exact-commit [CI 37250794109](https://github.com/ShaileshRawat1403/dax/actions/runs/37250794109)
+passed Windows, macOS and Ubuntu at
+`a1f87ccb3b9f3a483d83867f5a8ae0da86ad6b13`, attempt 1. This establishes the
+validated correction, not permanent immunity to unrelated Windows failures.
 
 No merge, release, binary replacement, or aggregate gap closure is claimed here.

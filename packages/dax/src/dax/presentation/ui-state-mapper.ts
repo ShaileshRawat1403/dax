@@ -59,6 +59,7 @@ function mapLifecycleToRun(lifecycle: WorkstationLifecycle): RunState {
       // that have richer signals (e.g., policy engine, auth state) should
       // populate input.safety directly.
       return "failed"
+    case "cancelled":
     case "failed":
       return "failed"
     case "completed":

@@ -9,6 +9,8 @@ independent cross-validation. Feature branches and exact-commit CI remain requir
 The Windows reliability correction builds on D2 API correction `82440ca` and is
 documented in [the lifecycle validation record](tooling/windows-lifecycle-validation.md).
 It does not itself close an aggregate conformance gap or approve a release.
+The next bounded correction separates live session activity from durable run
+status; see [its validation record](tooling/workstation-live-activity-validation.md).
 
 ## Execution ownership — 2026-10-04
 

@@ -28,6 +28,7 @@ describe("workstationToActiveUIState", () => {
       ["retrying", "provider_delayed"],
       ["blocked", "failed"],
       ["failed", "failed"],
+      ["cancelled", "failed"],
       ["completed", "complete"],
       ["ready", "ready"],
     ]

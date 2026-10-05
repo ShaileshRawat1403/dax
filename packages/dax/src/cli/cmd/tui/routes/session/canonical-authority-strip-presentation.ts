@@ -1,8 +1,10 @@
+import type { SessionStatus } from "@/session/status"
 import type { DisplayMode } from "@/dax/presentation/session-display"
 import type { CanonicalInspectorState } from "./canonical-inspector-state"
 
 export type CanonicalAuthorityStrip = {
   lifecycle: string
+  activity?: string
   authority: string
   sequence: number | null
   cursor: string | null
@@ -22,7 +24,7 @@ export function shouldShowCompatibilityHeaderChip(state: CanonicalInspectorState
   return !state || (state.status === "ready" && state.snapshot.kind === "legacy_unsupported")
 }
 
-export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, mode: DisplayMode): CanonicalAuthorityStrip {
+export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, mode: DisplayMode, activity?: SessionStatus.Info["type"]): CanonicalAuthorityStrip {
   if (state.status === "loading") {
     return { lifecycle: "Canonical status loading", authority: "Awaiting validated authority", sequence: null, cursor: null, pendingApprovals: 0, inspect: true, stale: false, warning: false }
   }
@@ -58,6 +60,7 @@ export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, m
   }
   return {
     lifecycle,
+    ...(activity ? { activity: { idle: "Idle", busy: "Working", retry: "Retrying", delayed: "Waiting for model capacity" }[activity] } : {}),
     authority: state.status === "stale"
       ? `STALE — last validated canonical state · sequence ${snapshot.authority.eventSequence} · cursor ${snapshot.authority.cursor}`
       : `Authority log validated · sequence ${snapshot.authority.eventSequence} · cursor ${snapshot.authority.cursor}`,
@@ -76,7 +79,7 @@ export function presentCanonicalAuthorityStrip(state: CanonicalInspectorState, m
 export function formatCanonicalAuthorityRows(strip: CanonicalAuthorityStrip, options?: { maxColumns?: number }): string[] {
   const rows: string[] = []
 
-  let lifecycleRow = strip.lifecycle
+  let lifecycleRow = strip.activity ? `Run: ${strip.lifecycle} · Activity: ${strip.activity}` : strip.lifecycle
   if (strip.pendingApprovals > 0) {
     lifecycleRow += ` · Action required: ${strip.pendingApprovals}`
   }

@@ -1,3 +1,4 @@
+import type { SessionStatus } from "@/session/status"
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import { TextAttributes, type RGBA } from "@opentui/core"
@@ -26,6 +27,7 @@ export function Header(props: {
   persona?: PersonaPack
   emphasis?: "normal" | "muted"
   actions?: HeaderAction[]
+  activity?: SessionStatus.Info["type"]
   busy?: boolean
   onCyclePersona?: () => void
   contextPercent?: number
@@ -195,7 +197,7 @@ export function Header(props: {
           </box>
         </box>
         <Show when={canonicalSource && props.onReviewDecision && props.onInspectTruth}>
-          <CanonicalAuthorityStrip
+          <CanonicalAuthorityStrip activity={props.activity}
             displayMode={displayMode()}
             onReviewDecision={props.onReviewDecision!}
             onInspectTruth={props.onInspectTruth!}

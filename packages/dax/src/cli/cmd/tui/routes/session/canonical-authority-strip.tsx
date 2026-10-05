@@ -1,3 +1,4 @@
+import type { SessionStatus } from "@/session/status"
 import { Show } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "@tui/context/theme"
@@ -6,17 +7,18 @@ import { useCanonicalInspectorSource } from "./canonical-inspector-source"
 import { presentCanonicalAuthorityStrip } from "./canonical-authority-strip-presentation"
 
 /** Compact persistent header truth. Its actions only change workstation focus. */
-export function CanonicalAuthorityStrip(props: { displayMode: DisplayMode; onReviewDecision: () => void; onInspectTruth: () => void }) {
+export function CanonicalAuthorityStrip(props: { activity?: SessionStatus.Info["type"]; displayMode: DisplayMode; onReviewDecision: () => void; onInspectTruth: () => void }) {
   const { theme } = useTheme()
   const source = useCanonicalInspectorSource()
-  const view = () => presentCanonicalAuthorityStrip(source.state(), props.displayMode)
+  const view = () => presentCanonicalAuthorityStrip(source.state(), props.displayMode, props.activity)
   const color = () => view().warning ? theme.warning : theme.primary
 
   return (
     <box flexDirection="column" gap={0} paddingTop={0.5}>
       {/* Row 1: Lifecycle and action triggers */}
       <box flexDirection="row" gap={1} flexWrap="wrap" alignItems="center">
-        <text fg={color()} attributes={TextAttributes.BOLD}>{view().lifecycle}</text>
+        <text fg={color()} attributes={TextAttributes.BOLD}>{view().activity ? `Run: ${view().lifecycle}` : view().lifecycle}</text>
+        <Show when={view().activity}><text fg={theme.textMuted}>Activity: {view().activity}</text></Show>
         <Show when={view().pendingApprovals > 0}>
           <text fg={theme.warning} attributes={TextAttributes.BOLD}>Action required: {view().pendingApprovals}</text>
           <box onMouseUp={props.onReviewDecision} border={['round']} borderColor={theme.borderSubtle} paddingLeft={1} paddingRight={1}>

@@ -23,6 +23,24 @@ function ready(snapshot = canonical()): CanonicalInspectorState {
 }
 
 describe("canonical authority strip", () => {
+  test("live idle, retry and delayed activity never fabricate canonical completion", () => {
+    const state = ready(canonical())
+    for (const [activity, label] of [["idle", "Idle"], ["busy", "Working"], ["retry", "Retrying"], ["delayed", "Waiting for model capacity"]] as const) {
+      const view = presentCanonicalAuthorityStrip(state, "operator", activity)
+      expect(view.lifecycle).toBe("Running")
+      expect(view.activity).toBe(label)
+      expect(formatCanonicalAuthorityRows(view)[0]).toBe(`Run: Running · Activity: ${label}`)
+      expect(view.sequence).toBe(7)
+    }
+    expect(state).toEqual(ready(canonical()))
+  })
+
+  test("unavailable authority is not replaced by idle activity", () => {
+    const view = presentCanonicalAuthorityStrip({ status: "unavailable", stale: false, error: "offline" }, "operator", "idle")
+    expect(view.lifecycle).toBe("Canonical status unavailable")
+    expect(view.activity).toBeUndefined()
+  })
+
   test("maps every canonical lifecycle to the required human label", () => {
     expect(presentCanonicalAuthorityStrip(ready(canonical({ canonicalStatus: "created" })), "operator").lifecycle).toBe("Prepared")
     expect(presentCanonicalAuthorityStrip(ready(canonical({ canonicalStatus: "compiled" })), "operator").lifecycle).toBe("Prepared")

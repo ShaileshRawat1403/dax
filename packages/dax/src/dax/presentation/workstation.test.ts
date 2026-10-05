@@ -2,6 +2,25 @@ import { describe, expect, test } from "bun:test"
 import { deriveWorkstationState, describeLifecycle } from "./workstation"
 
 describe("workstation presentation model", () => {
+  test("idle canonical runs remain open and do not gain completion posture", () => {
+    const input = {
+      sessionID: "open-run", stage: "done" as const, stageReason: "idle",
+      sessionStatusType: "idle" as const, todo: [], approvals: [], questions: 0,
+      artifacts: [], diffCount: 0,
+    }
+    for (const canonicalStatus of ["created", "compiled", "queued", "running"] as const) {
+      const state = deriveWorkstationState({ ...input, canonicalStatus })
+      expect(state.lifecycle).toBe("ready")
+      expect(state.phase).not.toBe("complete")
+      expect(state.trustPosture).toBe("review_needed")
+    }
+    const completed = deriveWorkstationState({ ...input, canonicalStatus: "completed" })
+    expect(completed.lifecycle).toBe("completed")
+    expect(completed.trustPosture).toBe("clear")
+    expect(deriveWorkstationState({ ...input, canonicalStatus: "failed" }).lifecycle).toBe("failed")
+    expect(deriveWorkstationState({ ...input, canonicalStatus: "cancelled" }).lifecycle).toBe("cancelled")
+  })
+
   test("derives compact operator summaries from execution state", () => {
     const state = deriveWorkstationState({
       sessionID: "test-session",
