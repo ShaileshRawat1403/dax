@@ -3141,7 +3141,7 @@ ${
             text: "Usage: /pm rules add <never_touch|require_approval|deny_tool|allow_tool> <pattern> <allow|deny|ask>",
           })
         }
-        if ((await PM.settings_review_input({ project_id })).authority === "journal") {
+        if ((await PM.settings_authority({ project_id })) === "journal") {
           return respondCommandText({ input, commandName: Command.Default.PM, text: PROJECT_SETTINGS_REVIEW_GUIDE })
         }
         const row = await PM.add_constraint({
@@ -3210,7 +3210,7 @@ ${
           text: "Usage: /audit profile <strict|balanced|advisory>",
         })
       }
-      if ((await PM.settings_review_input({ project_id: Instance.project.id })).authority === "journal") {
+      if ((await PM.settings_authority({ project_id: Instance.project.id })) === "journal") {
         return respondCommandText({ input, commandName: Command.Default.AUDIT, text: PROJECT_SETTINGS_REVIEW_GUIDE })
       }
       await PM.set_preference({

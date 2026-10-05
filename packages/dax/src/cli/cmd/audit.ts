@@ -110,7 +110,7 @@ export const AuditCommand = cmd({
         handler: async (args) => {
           await bootstrap(process.cwd(), async () => {
             const value = String(args.value)
-            if ((await PM.settings_review_input({ project_id: Instance.project.id })).authority === "journal") {
+            if ((await PM.settings_authority({ project_id: Instance.project.id })) === "journal") {
               console.log(PROJECT_SETTINGS_REVIEW_GUIDE)
               return
             }

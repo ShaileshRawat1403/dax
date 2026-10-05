@@ -256,3 +256,24 @@ test("enrolled audit-profile command explains review without changing authority"
     expect(await readProjectEvents()).toEqual(before)
   })
 })
+
+test("legacy preferences outside new snapshot limits do not block existing commands or explicit adoption", async () => {
+  await fixture(async (post, runId) => {
+    const project_id = Instance.project.id
+    const legacyValue = "x".repeat(17_000)
+    await PM.set_preference({ project_id, pref_key: "legacy.large", pref_value: legacyValue })
+    const command = await SessionPrompt.command({ sessionID: runId, command: "pm", arguments: "rules add deny_tool bash deny", model: "fixture/no-network" })
+    expect(command.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n")).toContain("Rule added")
+    const legacy = await PM.settings_review_input({ project_id })
+    expect(legacy.authority).toBe("legacy")
+    expect(legacy.snapshot.preferences.find((item) => item.key === "legacy.large")?.value).toBe(legacyValue)
+    const candidate = await propose(post, runId, { type: "project_settings_adopted", payload: {
+      snapshot, priorLegacyDigest: legacy.legacyDigest,
+    } })
+    expect((await post(`/facts/candidates/${candidate.candidateId}/review`, {
+      actor: "operator", decision: "approved", digest: candidate.digest,
+    })).status).toBe(200)
+    expect((await PM.legacy_settings_snapshot({ project_id })).snapshot.preferences.find((item) => item.key === "legacy.large")?.value).toBe(legacyValue)
+    expect((await PM.list_preferences({ project_id })).find((item) => item.pref_key === "legacy.large")).toBeUndefined()
+  })
+})

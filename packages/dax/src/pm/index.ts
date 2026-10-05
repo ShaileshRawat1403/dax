@@ -1,6 +1,5 @@
 import { readProjectEvents } from "@/state/events/project-journal"
 import { reduceProjectState } from "@/state/events/project-reducer"
-import { ProjectSettingsSnapshotSchema } from "@/state/events/project-settings"
 import { computeCanonicalCommitment } from "@/execution/canonical-commitment"
 import { acquireProjectLock } from "@/util/fs-lock"
 import { Database } from "bun:sqlite"
@@ -158,14 +157,21 @@ export namespace PM {
       .all(input.project_id) as Array<{ pref_key: string; pref_value: string }>
     const constraints = db.prepare("select id, rule_type, pattern, action, source, created_at from pm_constraints where project_id = ? order by id")
       .all(input.project_id) as Array<{ id: string; rule_type: string; pattern: string; action: string; source: string; created_at: number }>
-    const snapshot = ProjectSettingsSnapshotSchema.parse({ riskMode: readState(input.project_id)?.risk_mode ?? "balanced",
+    // Commit the complete historical population without imposing new replacement
+    // limits on data accepted by the legacy APIs. Only the reviewed candidate
+    // must satisfy the closed, bounded replacement schema.
+    const snapshot = { riskMode: readState(input.project_id)?.risk_mode ?? "balanced",
       preferences: preferences.map((item) => ({ key: item.pref_key, value: item.pref_value })),
       constraints: constraints.map((item) => ({ id: item.id, ruleType: item.rule_type,
         pattern: item.pattern, action: item.action, source: item.source, createdAt: item.created_at })),
-    })
+    }
     const { digest } = await computeCanonicalCommitment({ projectId: input.project_id, snapshot })
     return { snapshot, digest }
   })
+
+  /** Authority mode only: legacy command routing must not normalize old data. */
+  export const settings_authority = fn(z.object({ project_id: z.string() }), async (input) =>
+    await approvedSettings(input.project_id) ? "journal" as const : "legacy" as const)
 
   export const settings_review_input = fn(z.object({ project_id: z.string() }), async (input) => {
     const approved = await approvedSettings(input.project_id)

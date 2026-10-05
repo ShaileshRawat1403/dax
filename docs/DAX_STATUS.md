@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Legacy settings compatibility correction — 2026-10-05
+
+A real command control exposed new snapshot limits incorrectly constraining
+historical SQL preferences. [The bounded correction](tooling/project-settings-legacy-compatibility.md)
+keeps old data intact and commits its complete population; only reviewed new
+snapshots receive the new limits. Current full gates pass 2,367 tests. The preceding
+Agent lifecycle correction passed [all three platforms](https://github.com/ShaileshRawat1403/dax/actions/runs/37314994417).
+There is no additional gap closure; two candidate grant gaps remain.
+
 ## Agent import lifecycle correction — 2026-10-05
 
 Settings candidate CI passed Ubuntu/macOS but Windows hit the unchanged Agent
