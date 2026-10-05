@@ -188,6 +188,17 @@ describe("project-owned journal", () => {
       expect((await readApprovedProjectMemory({ project_id: Instance.project.id, limit: 10 })).entries[0].content).toBe("private-memory-fixture")
       await clearRunEvents(run.scopeId)
       expect((await applyReviewedProjectFact(candidateId)).eventId).toBe(promoted.eventId)
+      const beforeRetry = await readProjectEvents()
+      const retainedRetry = await post(`/facts/candidates/${candidateId}/review`, {
+        actor: "test-operator", digest: candidate.subject.digest, decision: "approved",
+      })
+      expect(retainedRetry.status).toBe(200)
+      expect((await retainedRetry.json() as { eventId: string }).eventId).toBe(promoted.eventId)
+      const conflictingRetry = await post(`/facts/candidates/${candidateId}/review`, {
+        actor: "test-operator", digest: candidate.subject.digest, decision: "rejected",
+      })
+      expect(conflictingRetry.status).toBe(409)
+      expect(await readProjectEvents()).toEqual(beforeRetry)
 
       const deniedRun = await runSource()
       await appendRunEventAtTail(deniedRun.scopeId, { type: "execution_queued", payload: {} })

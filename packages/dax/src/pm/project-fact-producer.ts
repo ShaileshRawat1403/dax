@@ -132,6 +132,13 @@ export async function reviewProjectFact(input: {
   const candidate = await readProjectFactCandidate(input.candidateId)
   if (!input.actor.trim() || input.digest !== candidate.subject.digest)
     throw new Error("project_fact_review_mismatch")
+  // This is a publication retry, not a new decision. The committed project
+  // event remains authoritative after the source run has been retained away.
+  const existing = await committedFact(candidate)
+  if (existing) {
+    if (input.decision !== "approved") throw new Error("project_fact_decision_conflict")
+    return existing
+  }
   const events = await readRunEvents(candidate.runId)
   reduceRunState(events)
   const requested = requests(events).find((item) => item.payload.approvalId === candidate.approvalId)
