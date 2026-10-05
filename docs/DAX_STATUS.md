@@ -9,8 +9,12 @@ independent cross-validation. Feature branches and exact-commit CI remain requir
 The Windows reliability correction builds on D2 API correction `82440ca` and is
 documented in [the lifecycle validation record](tooling/windows-lifecycle-validation.md).
 It does not itself close an aggregate conformance gap or approve a release.
-The next bounded correction separates live session activity from durable run
-status; see [its validation record](tooling/workstation-live-activity-validation.md).
+The bounded presentation correction separates live session activity from durable
+run status; see [its validation record](tooling/workstation-live-activity-validation.md).
+Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
+[follow-up correction](tooling/windows-timeout-cleanup-validation.md) retains
+those failures, adds native Windows descendant checks and proves a cleanup
+settlement race before correcting it.
 
 ## Execution ownership — 2026-10-04
 

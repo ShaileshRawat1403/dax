@@ -74,6 +74,7 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     let stdout = ""
     let stderr = ""
     let finished = false
+    let timedOut = false
 
     const child = spawn(executable, check.args, {
       cwd: check.cwd,
@@ -99,6 +100,7 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     // Kill the process group, not just the direct child, and report only after
     // the group is empty so a timed-out check cannot leave descendants behind.
     const timer = setTimeout(() => {
+      timedOut = true
       void Shell.killTree(child).finally(() => {
         finish({
           exitCode: null,
@@ -118,6 +120,7 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     })
 
     child.on("error", (err) => {
+      if (timedOut) return // The timeout owns settlement until tree cleanup finishes.
       finish({
         exitCode: null,
         status: "error",
@@ -127,6 +130,7 @@ export async function runCheck(check: CheckDefinition): Promise<CheckResult> {
     })
 
     child.on("close", (code) => {
+      if (timedOut) return // Do not race tree cleanup with a premature failed result.
       // Reap on the clean path too. A check can exit zero having started a
       // watcher, a dev server or a language kernel that outlives it, and
       // signalling only on timeout leaves those running. Same guarantee

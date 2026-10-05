@@ -127,7 +127,9 @@ describe("stranded runs", () => {
 
       expect((await listInterruptedRuns()).map((run) => run.runId)).toContain(buriedId)
     })
-  })
+    // This fixture persists 120 full lifecycles before testing pagination.
+    // Keep the population and invariant; include setup and awaited disposal.
+  }, 30_000)
 
   test("every non-terminal status can strand, not just running", async () => {
     return inRepo(async () => {
