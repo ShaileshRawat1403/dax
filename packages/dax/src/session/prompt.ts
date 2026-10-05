@@ -1,3 +1,4 @@
+import { approvedProjectConventions } from "@/pm/approved-conventions"
 import path from "path"
 import os from "os"
 import fs from "fs/promises"
@@ -1089,6 +1090,7 @@ export namespace SessionPrompt {
       ]
       const environmentInstructions = await SystemPrompt.environment(model)
       const configuredInstructions = await InstructionPrompt.systemContributions()
+      const projectConventions = await approvedProjectConventions(Instance.project.id)
       const reflectionInstructions = reflectionSummary
         ? [
             `<reflection-context>`,
@@ -1101,6 +1103,7 @@ export namespace SessionPrompt {
         : []
       const systemInstructions = [
         ...environmentInstructions,
+        ...projectConventions.map((convention) => convention.text),
         ...configuredInstructions.map((instruction) => instruction.text),
         ...reflectionPolicy,
         ...reflectionInstructions,
@@ -1113,6 +1116,14 @@ export namespace SessionPrompt {
           channel: "system" as const,
           role: "system" as const,
           value,
+        })),
+        ...projectConventions.map((convention) => ({
+          sourceId: convention.reference,
+          kind: "project_convention" as const,
+          reference: convention.reference,
+          channel: "system" as const,
+          role: "system" as const,
+          value: convention.text,
         })),
         ...configuredInstructions.map((instruction, index) => ({
           sourceId: `${instruction.source.kind}:${index}:${instruction.source.reference}`,

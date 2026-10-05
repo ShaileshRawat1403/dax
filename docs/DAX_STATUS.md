@@ -27,6 +27,18 @@ accepted gaps. Legacy SQL preferences and constraints are not migrated or promot
 See [the producer protocol and validation](tooling/project-memory-producer-validation.md).
 There is no new memory UI, release, or main integration in this slice.
 
+## Convention consumer candidate — 2026-10-05
+
+Approved project conventions now reach the production provider-adapter system
+input, with explicit prompt provenance and retirement/malformed-authority
+controls. [Validation and compatibility](tooling/project-conventions-validation.md)
+record the boundary. This does not propose another aggregate closure; the
+candidate ledger remains three and accepted main remains eight.
+The memory producer at `b4795c0` and retention correction at `008f633` both passed
+exact-commit CI on Ubuntu, macOS, and Windows:
+[producer](https://github.com/ShaileshRawat1403/dax/actions/runs/37257787807),
+[retention retry](https://github.com/ShaileshRawat1403/dax/actions/runs/37258212016).
+
 ## Execution ownership — 2026-10-04
 
 The maintainer transferred the remaining conformance implementation to Codex. Astra

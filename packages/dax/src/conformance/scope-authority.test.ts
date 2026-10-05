@@ -1,3 +1,5 @@
+import { RUN_EVENT_TYPES } from "@/state/events/run-event-types"
+import { ProjectEventPayloadSchema } from "@/state/events/project-event-types"
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { mkdtemp, rm } from "node:fs/promises"
@@ -184,13 +186,17 @@ describe("invariant 7 — scope authority", () => {
     //
     // Asserted against the run vocabulary directly: no run event may name a
     // project-scoped transition.
-    const runVocabulary = source("state/events/run-event-types.ts")
+    // Inspect authoritative event discriminants, not incidental provenance labels.
+    const runVocabulary = RUN_EVENT_TYPES
     const projectOwned = OWNERSHIP.filter((entry) => entry.owner === "project")
 
+    for (const variant of ProjectEventPayloadSchema.options) {
+      expect(runVocabulary).not.toContain(variant.shape.type.value)
+    }
     for (const entry of projectOwned) {
       const eventish = entry.fact.replace(/\s+/g, "_")
-      expect(runVocabulary).not.toContain(`"${eventish}"`)
-      expect(runVocabulary).not.toContain(`"memory_promoted"`)
+      expect(runVocabulary).not.toContain(eventish)
+      expect(runVocabulary).not.toContain("memory_promoted")
     }
   })
 

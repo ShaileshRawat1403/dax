@@ -1,3 +1,5 @@
+import { approvedProjectConventions } from "@/pm/approved-conventions"
+import { proposeProjectFact, reviewProjectFact } from "@/pm/project-fact-producer"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import { createHash } from "node:crypto"
@@ -211,6 +213,61 @@ function settlement(
 }
 
 describe("durable prompt provenance", () => {
+  test("production dispatch consumes only active reviewed conventions with journal provenance", async () => {
+    await Instance.provide({ directory: testProject, async fn() {
+      const { root } = await governedRoot()
+      const candidateId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+      const candidate = await proposeProjectFact({ runId: root.id, candidateId,
+        change: { type: "project_fact_promoted", payload: { fact: {
+          factId: "fixture_convention", kind: "convention", title: "Private convention title",
+          content: "Project fixture convention: use deterministic tests.", tags: [],
+        } } } })
+      expect(await approvedProjectConventions(Instance.project.id)).toEqual([])
+      await reviewProjectFact({ candidateId, digest: candidate.subject.digest,
+        actor: "fixture-operator", decision: "approved" })
+      await prepareConversation(root.id)
+      let supplied = ""
+      const model = languageModel(async (options) => {
+        supplied = JSON.stringify(options.prompt)
+        return streamResult(successfulChunks())
+      })
+      const spies = installActualStreamingModel(model)
+      try {
+        await SessionPrompt.loop({ sessionID: root.id })
+        expect(supplied).toContain("Project fixture convention: use deterministic tests.")
+        const events = await readRunEvents(root.id)
+        const sources = (await projectRunStateFromEvents(root.id))?.promptHistory.dispatches[0]?.commitment.supplied ?? []
+        expect(sources.some((source) => source.kind === "project_convention")).toBe(true)
+        expect(JSON.stringify(events)).not.toContain("Private convention title")
+        expect(JSON.stringify(events)).not.toContain("Project fixture convention: use deterministic tests.")
+        const retirementId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+        const retirement = await proposeProjectFact({ runId: root.id, candidateId: retirementId,
+          change: { type: "project_fact_retired", payload: {
+            factId: "fixture_convention", reason: "No longer applies",
+          } } })
+        await reviewProjectFact({ candidateId: retirementId, digest: retirement.subject.digest,
+          actor: "fixture-operator", decision: "approved" })
+        const next = await governedRoot()
+        await prepareConversation(next.root.id)
+        supplied = ""
+        await SessionPrompt.loop({ sessionID: next.root.id })
+        expect(supplied).not.toContain("Project fixture convention: use deterministic tests.")
+        const nextSources = (await projectRunStateFromEvents(next.root.id))?.promptHistory.dispatches[0]?.commitment.supplied ?? []
+        expect(nextSources.some((source) => source.kind === "project_convention")).toBe(false)
+        const corrupt = await governedRoot()
+        await prepareConversation(corrupt.root.id)
+        await Storage.write(["project_events", Instance.project.id, "events.json"], [{ malformed: true }])
+        supplied = ""
+        const failure = await SessionPrompt.loop({ sessionID: corrupt.root.id }).then(
+          () => undefined, (error: unknown) => error,
+        )
+        expect(failure).toBeInstanceOf(Error)
+        expect((failure as Error).message).toContain("malformed event")
+        expect(supplied).toBe("")
+      } finally { spies.restore() }
+    } })
+  }, 20_000)
+
   test("records commitment-only provider-adapter input and reconstructs it without session storage", async () => {
     await Instance.provide({
       directory: testProject,

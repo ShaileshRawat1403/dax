@@ -13,6 +13,7 @@ export type PromptInstructionSourceKind =
   | "agent_prompt"
   | "provider_prompt"
   | "environment"
+  | "project_convention"
   | "instruction_file"
   | "instruction_url"
   | "user_system"
