@@ -101,9 +101,14 @@ gaps without intermediate architecture waits. Astra will review the complete
 candidate before integration or a future release. Published `main` remains at
 `d2ef0b0f510c70df29d3855f399e02902fbe4014`, with **eight accepted open gaps**.
 The feature-stack ledger is a candidate measurement, not an accepted main claim.
+The 2026-10-05 caller-registration descriptor correction additionally proposes
+closure of capability vocabulary and intrinsic properties. Four candidate
+entries remain: contract grants, shared enforcement, project-journal production
+integration and governed memory. Accepted main still has eight open gaps.
+See [current coverage evidence](tooling/legacy-runtime-descriptors-validation.md).
 The [run-envelope cutover record](tooling/run-envelope-cutover-validation.md)
 documents proposed closure of the journal primitive and scope-aware envelope
-entries, leaving six candidate entries. Contract grants/enforcement and governed
+entries; the later descriptor correction leaves four candidate entries. Contract grants/enforcement and governed
 project-memory production are not complete; no claim of eight-gap closure is made.
 
 Claude Opus 5.5 is expected to join collaboration at the maintainer's request.

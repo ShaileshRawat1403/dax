@@ -15,12 +15,15 @@ Production dispatch controls preserve v1 permissions, initialized receivers,
 native alias separation, replacement compatibility and stale-handle rejection.
 Graph type/executor mutation is rejected before effects. The original vocabulary
 and properties wrappers reported CLOSED; those assertions now run normally.
-Ledger removal awaits complete coverage assessment and integration.
+The candidate ledger proposes removal of the two entries after production
+coverage assessment; accepted main counts await integration. The remaining four
+entries are not claimed closed.
 
 Validation under Bun 1.4.0:
 - Dispatch regressions: 75 passed, 388 assertions.
 - Complete release gates: 2,352 passed, 2 skipped, zero failures, 8,933 assertions;
   typechecks, lint, smoke, Rust and release checks passed.
+- Closure ledger/catalog/graph controls: 32 passed, 355 assertions.
 - Final added production review control and stage-3 regressions: 39 passed,
   242 assertions. This test was added after the complete gate; hosted CI must
   validate the final commit.

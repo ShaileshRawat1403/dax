@@ -1,5 +1,16 @@
 # Conformance sprint: original nine-gap scope
 
+## Current feature candidate — 2026-10-05
+
+The caller-registration descriptor correction proposes closure of capability
+vocabulary and intrinsic properties. Together with the journal cutover, four
+candidate gaps remain: reviewed contract grants, shared enforcement,
+project-journal production integration and governed memory. These are candidate
+measurements; published main still has eight accepted open gaps. Runtime
+identities grant no permission and do not attest arbitrary caller code.
+Older delivery descriptions below retain their historical context.
+
+
 Status: resumed on 2026-09-26 at the maintainer's request, proposal before runtime.
 The 2026-09-20 pause during the maintainer's absence remains historical evidence.
 Implementation model: Sol until 2026-09-30, then Claude Opus 5.5 on

@@ -1,5 +1,16 @@
 # DAX vNext Conformance Suite
 
+## Current feature candidate — 2026-10-05
+
+The caller-registration descriptor correction proposes closure of capability
+vocabulary and intrinsic properties. Together with the journal cutover, four
+candidate gaps remain: reviewed contract grants, shared enforcement,
+project-journal production integration and governed memory. These are candidate
+measurements; published main still has eight accepted open gaps. Runtime
+identities grant no permission and do not attest arbitrary caller code.
+Older delivery descriptions below retain their historical context.
+
+
 Six architectural invariants, expressed as tests rather than prose.
 
 A prose invariant drifts — this repository spent 2026-08-19 repairing 66 documents

@@ -11,8 +11,8 @@ describe("known-gaps ledger", () => {
   test("an open gap passes", () => {
     // The normal case: the invariant does not hold yet, so its check throws.
     expect(() =>
-      expectGap("inv5.capability-vocabulary", () => {
-        throw new Error("capability registry does not exist")
+      expectGap("inv5.contract-grants", () => {
+        throw new Error("the remaining contract invariant does not yet hold")
       }),
     ).not.toThrow()
   })
@@ -21,8 +21,8 @@ describe("known-gaps ledger", () => {
     // The property that matters. An invariant that starts holding must turn the
     // suite red until someone strikes it from the ledger — otherwise a fix goes
     // unrecorded and the meter lies in the flattering direction.
-    expect(() => expectGap("inv5.capability-vocabulary", () => {})).toThrow(/appears to be CLOSED/)
-    expect(() => expectGap("inv5.capability-vocabulary", () => {})).toThrow(/KNOWN_GAPS/)
+    expect(() => expectGap("inv5.contract-grants", () => {})).toThrow(/appears to be CLOSED/)
+    expect(() => expectGap("inv5.contract-grants", () => {})).toThrow(/KNOWN_GAPS/)
   })
 
   test("an unrecorded gap id is refused", () => {

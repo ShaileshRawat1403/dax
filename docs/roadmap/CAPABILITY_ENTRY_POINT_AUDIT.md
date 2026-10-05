@@ -9,7 +9,31 @@ Astra reviewed it, corrected two of its findings, and fixed the scope. This
 revision applies those corrections and records the first delivery built on them.
 Nothing here is an accepted gap closure.
 
-## Verdict
+## Candidate update — 2026-10-05
+
+Codex's caller-registration correction, validated at `9e3cbef`, addresses the
+last descriptor omissions identified below. Both vocabulary and intrinsic
+property entries are proposed closed in the feature-stack ledger. Accepted
+main remains unchanged with eight open gaps; this is solo validation, not
+independent cross-validation or integration acceptance.
+
+The current composed catalog has 17 families: nine static listed families
+(50 descriptors), two dynamic listed families, and six on-demand families
+(MCP resource/prompt v1/v2 plus caller tools and operators). Caller names map
+to strict conservative logical identities, bound to actual executor functions
+and receivers. These identities provide no source attestation and no permission.
+Trusted plugin hooks/loading and service lifecycle effects retain the explicit
+scope decisions below. Caller tools remain excluded from reviewed grants when
+there is no implementation binding; existing v1 compatibility is preserved.
+
+Production controls include direct and batch dispatch, native-alias collisions,
+replacement and stale handles, graph dispatch and post-selection mutation,
+malformed descriptor rejection, namespace composition, and real review capture
+refusing to turn an acknowledged caller descriptor into a grant.
+
+[Validation and durable evidence](../tooling/legacy-runtime-descriptors-validation.md).
+
+## Original delivery verdict (superseded for the candidate)
 
 Both `inv5.capability-vocabulary` and `inv5.capability-properties` stay open. Every
 DAX-dispatched family now resolves through one composed vocabulary. The gaps remain
