@@ -785,14 +785,49 @@ fn same_parent(a: &str, b: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn fixture_dir() -> PathBuf {
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+    struct Fixture(PathBuf);
+
+    impl std::ops::Deref for Fixture {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).expect("owned indexer fixture cleanup must succeed");
+        }
+    }
+
+    fn fixture_dir() -> Fixture {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("dax-indexer-{stamp}"));
+        fixture_dir_at(stamp)
+    }
+
+    fn fixture_dir_at(stamp: u128) -> Fixture {
+        // Clock resolution is not ownership. Atomically reserve a fresh root,
+        // including when processes or concurrent tests receive the same tick.
+        let dir = loop {
+            let serial = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "dax-indexer-{}-{stamp}-{serial}",
+                std::process::id()
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => break Fixture(path),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("cannot reserve indexer fixture: {error}"),
+            }
+        };
         fs::create_dir_all(dir.join("src")).unwrap();
         fs::create_dir_all(dir.join("crates/demo/src")).unwrap();
         fs::write(
@@ -823,6 +858,61 @@ use std::path::PathBuf;
         )
         .unwrap();
         dir
+    }
+
+    #[test]
+    fn same_clock_tick_cannot_expose_another_fixtures_partial_write() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let first = fixture_dir_at(stamp);
+        let second = fixture_dir_at(stamp);
+        // Hold the second fixture at the real truncate-before-write window.
+        // Independent fixture ownership must keep the first index intact.
+        let _partial = fs::File::create(second.join("src/approval.ts")).unwrap();
+        let index = Index::build(&first, &BuildOptions::default()).unwrap();
+        let hits = index.relevance(
+            &Query {
+                keywords: vec!["approval storage".to_string()],
+                touched_files: vec![],
+                filter_lang: None,
+            },
+            3,
+        );
+        assert_eq!(hits[0].path, "src/approval.ts");
+        assert_ne!(first.0, second.0);
+    }
+
+    #[test]
+    fn concurrent_same_tick_fixtures_are_owned_and_removed() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let paths = std::thread::scope(|scope| {
+            let workers = (0..16)
+                .map(|_| {
+                    scope.spawn(move || {
+                        let dir = fixture_dir_at(stamp);
+                        let path = dir.0.clone();
+                        let index = Index::build(&dir, &BuildOptions::default()).unwrap();
+                        assert_eq!(index.files.len(), 3);
+                        drop(dir);
+                        path
+                    })
+                })
+                .collect::<Vec<_>>();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            paths.iter().collect::<std::collections::HashSet<_>>().len(),
+            16
+        );
+        assert!(paths.iter().all(|path| !path.exists()));
     }
 
     #[test]
