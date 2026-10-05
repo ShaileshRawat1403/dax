@@ -49,17 +49,28 @@ async function governReviewed(action: RecordedAction): Promise<"not_reviewed" | 
   // Anything uncertain, from an unreadable session to an unreadable store or
   // no instance to read it in, denies before the action has any effect.
   let runId: string
+  let session: Session.Info | undefined
   try {
-    runId =
-      "runId" in action.governedBy
-        ? action.governedBy.runId
-        : await Session.get(action.governedBy.sessionID).then((session) => session.governingRunId ?? session.id)
+    if ("runId" in action.governedBy) {
+      runId = action.governedBy.runId
+    } else {
+      session = Session.Info.parse(await Session.get(action.governedBy.sessionID))
+      if (session.id !== action.governedBy.sessionID || session.projectID !== Instance.project.id) {
+        throw new Error("Action session identity does not match its storage owner")
+      }
+      runId = session.governingRunId ?? session.id
+    }
   } catch (error) {
     log.warn("governing authority could not be read; the action is denied", { path: action.path, error })
     throw new CapabilityActionDeniedError(action.path, "authority_unreadable")
   }
   try {
     await assertNoGrantReview(runId)
+    // Absence of grant review does not erase an explicit governing contract.
+    // Validate it before effects; shadow append failures remain isolated below.
+    if (session?.governingRunId !== undefined) {
+      await resolveExecutionAuthority(session.id, session.governingRunId)
+    }
     return "not_reviewed"
   } catch (error) {
     if (!(error instanceof GrantReviewBarrierError)) {
@@ -156,10 +167,11 @@ function reviewedReadExecutor(action: RecordedAction): RecordedAction["executor"
  * `CapabilityActionDeniedError` before the action has any effect; see
  * `governReviewed`. Everywhere else:
  *
- * Record only, and isolated. These paths wrote nothing to the journal for the
- * action before, so this write must not become a new way for them to fail or
- * to be refused: any failure, including an unreadable governing reference, is
- * logged and the action proceeds exactly as it would have. An action with no
+ * After validating the session, explicit governing reference and absence of
+ * review, shadow recording is isolated. These paths previously wrote nothing
+ * for the action, so a failed shadow journal read or append is logged without
+ * introducing another execution denial. Uncertain governing authority itself
+ * is denied before reaching that compatibility branch. An action with no
  * canonical journal, because it has no governing run or its run predates event
  * authority, is not recorded at all. That is an explicit gap, not an allow.
  *

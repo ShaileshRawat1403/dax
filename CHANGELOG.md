@@ -77,6 +77,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Context/action dispatch validates its session storage owner and any explicit
+  governing contract before entering legacy compatibility. Missing or malformed
+  governing references refuse effects; valid v1 shadow-record failures remain
+  isolated and do not introduce an execution denial.
+
 - Task-graph operator dispatch now consults shared reviewed authority before
   executor effects, including inherited child authority. Unsupported graph
   executors are durably denied in activated reviewed runs; missing session or

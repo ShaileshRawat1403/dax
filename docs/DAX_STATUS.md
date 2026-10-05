@@ -16,6 +16,14 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Shared action reference correction — 2026-10-05
+
+Three production context-read controls reproduced fallback from missing/malformed
+governing contracts or mismatched session ownership. [The correction](tooling/action-governing-reference-validation.md)
+refuses those effects before entering compatibility while preserving valid v1
+shadow-write isolation. Full gates pass 2,377 tests. No grant or aggregate gap
+closure is added; two candidate grant gaps and the final coverage audit remain.
+
 ## Task-graph authority correction — 2026-10-05
 
 Production graph dispatch previously selected an identity without consulting

@@ -349,6 +349,27 @@ describe("uncertain authority denies before any effect", () => {
     }
   }
 
+  for (const invalid of ["missing-contract", "malformed-reference", "wrong-owner"] as const) {
+    test(`a ${invalid} session authority refuses the production template read`, async () => {
+      await within(async () => {
+        const session = await Session.createNext({ directory, governingRunId: "ses_missing_action_authority" })
+        const fixture = path.join(directory, "fixture.txt")
+        await fs.writeFile(fixture, "fixture")
+        if (invalid === "malformed-reference") {
+          await Storage.write(["session", Instance.project.id, session.id], { ...session, governingRunId: "not_a_session" })
+        }
+        if (invalid === "wrong-owner") {
+          await Storage.write(["session", Instance.project.id, session.id], { ...session, id: "ses_other_action", governingRunId: undefined })
+        }
+        const outcome = await templateEffects(session.id, fixture)
+        expect(outcome.error).toBeInstanceOf(CapabilityActionDeniedError)
+        expect((outcome.error as CapabilityActionDeniedError).reasonCode).toBe("authority_unreadable")
+        expect(outcome.effects).toBe(0)
+        expect(await readRunEvents(session.id)).toEqual([])
+      })
+    })
+  }
+
   test("an unreadable session or review store refuses the action with no filesystem effect", async () => {
     await within(async () => {
       const runId = await reviewed()
@@ -438,6 +459,7 @@ describe("every other run keeps the isolated record-only path", () => {
       const { contract } = compileWithRunId({ request: { intent: { input: "Work on one file." } } }, session.id)
       await ContractGuardian.create(session.id, contract)
       await createEventAuthorityRun(session.id, contract.contractId)
+      await Session.bindGoverningRun(session.id, session.id)
       const original = Storage.write
       const write = spyOn(Storage, "write").mockImplementation((async (key: string[], value: unknown) => {
         if (
