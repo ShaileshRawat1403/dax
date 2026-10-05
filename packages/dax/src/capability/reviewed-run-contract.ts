@@ -97,6 +97,15 @@ export const ReviewedRunRefusal = z
   .object({ code: z.string(), message: z.string(), runId: z.string().optional() })
   .meta({ ref: "ReviewedRunRefusal" })
 
+/** Actual standard-validator JSON response; keep the legacy plural-errors schema separate. */
+export const RunBadRequestError = z
+  .object({
+    data: z.unknown().optional(),
+    error: z.array(z.record(z.string(), z.unknown())),
+    success: z.literal(false),
+  })
+  .meta({ ref: "RunBadRequestError" })
+
 /** Useful API refusal; authority errors never enter the legacy fallback catch. */
 export class ReviewedRunError extends Error {
   constructor(

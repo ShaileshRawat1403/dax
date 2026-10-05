@@ -3441,17 +3441,42 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Invalid request JSON, validator input or reviewed operator decision",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BadRequestError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/BadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunBadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReviewedRunRefusal"
+                    }
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
           },
           "409": {
             "description": "Reviewed creation authority refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Reviewed run, successor session or review missing",
             "content": {
               "application/json": {
                 "schema": {
@@ -3678,6 +3703,41 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request JSON, validator input or reviewed operator decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/BadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunBadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReviewedRunRefusal"
+                    }
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Reviewed approval authority refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewedRunRefusal"
                 }
               }
             }
@@ -7780,7 +7840,29 @@
             }
           },
           "400": {
-            "description": "Invalid operator input",
+            "description": "Invalid request JSON, validator input or reviewed operator decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RunBadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReviewedRunRefusal"
+                    }
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale pins or immutable publication",
             "content": {
               "application/json": {
                 "schema": {
@@ -7789,8 +7871,8 @@
               }
             }
           },
-          "409": {
-            "description": "Stale pins or immutable publication",
+          "404": {
+            "description": "Reviewed run, successor session or review missing",
             "content": {
               "application/json": {
                 "schema": {
@@ -7851,7 +7933,29 @@
             }
           },
           "400": {
-            "description": "Invalid start input",
+            "description": "Invalid request JSON, validator input or reviewed operator decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RunBadRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ReviewedRunRefusal"
+                    }
+                  ]
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not startable or authority refused",
             "content": {
               "application/json": {
                 "schema": {
@@ -7860,8 +7964,8 @@
               }
             }
           },
-          "409": {
-            "description": "Not startable or authority refused",
+          "404": {
+            "description": "Reviewed run, successor session or review missing",
             "content": {
               "application/json": {
                 "schema": {
@@ -15538,7 +15642,9 @@
             "enum": [
               "draft_and_approve",
               "repo_analyze",
-              "review_and_signoff"
+              "review_and_signoff",
+              "worker_run",
+              "generic"
             ]
           },
           "metadata": {
@@ -18532,6 +18638,30 @@
           "expected"
         ],
         "additionalProperties": false
+      },
+      "RunBadRequestError": {
+        "type": "object",
+        "properties": {
+          "data": {},
+          "error": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "success": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "error",
+          "success"
+        ]
       }
     }
   }

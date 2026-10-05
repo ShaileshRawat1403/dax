@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
-import { errors } from "../error"
+import { errors, BadRequestError } from "../error"
 import { lazy } from "@/util/lazy"
 import {
   ApprovalRecord,
@@ -24,6 +24,7 @@ import { discoverAntigravityModels } from "@/worker/antigravity-models"
 import { AntigravityConversation } from "@/worker/antigravity-conversation"
 import { inspectReviewedRun, reviseReviewedRun, startReviewedRun } from "@/capability/reviewed-run"
 import {
+  RunBadRequestError,
   ReviewedRunError,
   ReviewedRunRefusal,
   RunGrantReview,
@@ -31,6 +32,24 @@ import {
   StartGrantReviewRequest,
   StartGrantReviewResponse,
 } from "@/capability/reviewed-run-contract"
+
+const reviewedBadRequest = (legacy = false) => ({
+  description: "Invalid request JSON, validator input or reviewed operator decision",
+  content: {
+    "application/json": {
+      schema: resolver(
+        legacy
+          ? z.union([BadRequestError, RunBadRequestError, ReviewedRunRefusal])
+          : z.union([RunBadRequestError, ReviewedRunRefusal]),
+      ),
+    },
+    "text/plain": { schema: resolver(z.string()) },
+  },
+})
+const reviewedMissing = {
+  description: "Reviewed run, successor session or review missing",
+  content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+}
 
 export const RunRoutes = lazy(() =>
   new Hono()
@@ -93,7 +112,8 @@ export const RunRoutes = lazy(() =>
               },
             },
           },
-          ...errors(400),
+          400: reviewedBadRequest(true),
+          404: reviewedMissing,
           409: {
             description: "Reviewed creation authority refused",
             content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
@@ -153,10 +173,8 @@ export const RunRoutes = lazy(() =>
             description: "Fresh revision awaiting fresh approval",
             content: { "application/json": { schema: resolver(RunGrantReview) } },
           },
-          400: {
-            description: "Invalid operator input",
-            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
-          },
+          400: reviewedBadRequest(),
+          404: reviewedMissing,
           409: {
             description: "Stale pins or immutable publication",
             content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
@@ -187,10 +205,8 @@ export const RunRoutes = lazy(() =>
             description: "Initial dispatch claimed",
             content: { "application/json": { schema: resolver(StartGrantReviewResponse) } },
           },
-          400: {
-            description: "Invalid start input",
-            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
-          },
+          400: reviewedBadRequest(),
+          404: reviewedMissing,
           409: {
             description: "Not startable or authority refused",
             content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
@@ -355,6 +371,11 @@ export const RunRoutes = lazy(() =>
             },
           },
           ...errors(404),
+          400: reviewedBadRequest(true),
+          409: {
+            description: "Reviewed approval authority refused",
+            content: { "application/json": { schema: resolver(ReviewedRunRefusal) } },
+          },
         },
       }),
       validator("param", z.object({ runID: z.string(), approvalID: z.string() })),

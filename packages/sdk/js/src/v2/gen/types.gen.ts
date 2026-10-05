@@ -2585,7 +2585,7 @@ export type PersonaPresetV1 = {
 export type CreateRunRequestV1 = {
   intent: RunIntentV1
   personaPreset?: PersonaPresetV1
-  workflowHint?: "draft_and_approve" | "repo_analyze" | "review_and_signoff"
+  workflowHint?: "draft_and_approve" | "repo_analyze" | "review_and_signoff" | "generic" | "worker_run"
   metadata?: {
     initiatedBy?: string
     source?: "soothsayer" | "api" | "cli" | "dax"
@@ -4812,7 +4812,8 @@ export type RunCreateErrors = {
   /**
    * Bad request
    */
-  400: BadRequestError | ReviewedRunRefusal
+  400: BadRequestError | RunBadRequestError | ReviewedRunRefusal | string
+  404: ReviewedRunRefusal
   409: ReviewedRunRefusal
 }
 
@@ -4923,7 +4924,7 @@ export type RunApprovalsResolveErrors = {
    * Not found
    */
   404: NotFoundError
-  400: BadRequestError | ReviewedRunRefusal
+  400: BadRequestError | RunBadRequestError | ReviewedRunRefusal | string
   409: ReviewedRunRefusal
 }
 
@@ -6865,11 +6866,12 @@ export type RunGrantReviewReviseErrors = {
   /**
    * Invalid operator input
    */
-  400: ReviewedRunRefusal
+  400: RunBadRequestError | ReviewedRunRefusal | string
   /**
    * Stale pins or immutable publication
    */
   409: ReviewedRunRefusal
+  404: ReviewedRunRefusal
 }
 
 export type RunGrantReviewReviseError = RunGrantReviewReviseErrors[keyof RunGrantReviewReviseErrors]
@@ -6898,11 +6900,12 @@ export type RunGrantReviewStartErrors = {
   /**
    * Invalid start input
    */
-  400: ReviewedRunRefusal
+  400: RunBadRequestError | ReviewedRunRefusal | string
   /**
    * Not startable or authority refused
    */
   409: ReviewedRunRefusal
+  404: ReviewedRunRefusal
 }
 
 export type RunGrantReviewStartError = RunGrantReviewStartErrors[keyof RunGrantReviewStartErrors]
@@ -6915,3 +6918,6 @@ export type RunGrantReviewStartResponses = {
 }
 
 export type RunGrantReviewStartResponse = RunGrantReviewStartResponses[keyof RunGrantReviewStartResponses]
+
+/** Actual Hono standard-validator response on run routes. */
+export type RunBadRequestError = { data?: unknown; error: Array<{ [key: string]: unknown }>; success: false }

@@ -111,6 +111,7 @@ describe("stage 4d genuine compiled production authority", () => {
       const api = JSON.parse((await run("api", [first, home, "api"])).trim().split("\n").at(-1)!)
       expect(api.controls).toEqual([
         "api-preflight-no-session-authority-provider",
+        "api-actual-validator-and-missing-errors-no-effects",
         "api-complete-stale-pins-no-append",
         "api-grant-actor-remember-validation-before-append",
         "api-server-produced-revision-fresh-approval",

@@ -25,7 +25,7 @@ import { Hono } from "hono"
 import { RunRoutes } from "@/server/routes/run"
 import { subjectKey } from "@/capability/grant-proposal"
 import { CreateRunResponse } from "@/server/run-contract"
-import { RunGrantReview } from "@/capability/reviewed-run-contract"
+import { RunGrantReview, RunBadRequestError, ReviewedRunRefusal } from "@/capability/reviewed-run-contract"
 
 declare const DAX_PRODUCER_VARIANT: string
 const home = process.argv[2]!
@@ -281,6 +281,33 @@ try {
         const journal = () => readRunEvents(runId)
         const original = await journal()
         const originalReview = await GrantReview.get(runId)
+        for (const suffix of ["start", "revisions"] as const) {
+          const invalid = await api(`/${runId}/grant-review/${suffix}`, {}, 400)
+          assert.equal(RunBadRequestError.safeParse(invalid).success, true)
+          const missing = await api(
+            `/ses_missing/grant-review/${suffix}`,
+            suffix === "start" ? { expected: review.expected } : { expected: review.expected, inputs: {} },
+            404,
+          )
+          assert.equal(ReviewedRunRefusal.safeParse(missing).success, true)
+          assert.equal(missing.code, "review_missing")
+        }
+        const missingSuccessor = await api(
+          "/",
+          {
+            ...strict,
+            capabilityReview: {
+              mode: "reviewed_grants",
+              successorOf: "ses_missing",
+            },
+          },
+          404,
+        )
+        assert.equal(ReviewedRunRefusal.safeParse(missingSuccessor).success, true)
+        assert.deepEqual(await journal(), original)
+        assert.deepEqual(await GrantReview.get(runId), originalReview)
+        assert.equal(providerCalls, 0)
+        controls.push("api-actual-validator-and-missing-errors-no-effects")
         for (const changed of [
           { revision: review.expected.revision + 1 },
           { approvalId: "stale" },
