@@ -47,6 +47,7 @@ const directory = path.join(home, "project")
 const evidence = path.join(directory, "evidence.txt")
 const sentinel = path.join(directory, "shell-effect")
 let providerCalls = 0
+let interruptedRunId: string | undefined
 async function controlledMcp() {
   const calls = { tool: 0, resource: 0, prompt: 0 }
   const sessions = new Map<string, { protocol: McpServer; transport: WebStandardStreamableHTTPServerTransport }>()
@@ -140,6 +141,14 @@ const model = Bun.serve({
     const mcpAlias = ["gamma_probe", "delta_probe"].find(
       (name) => offers(name) && latestUser.includes(`PRODUCER_MCP_${name}`),
     )
+    if (phase === "kill-open" && interruptedRunId && offers("read") && latestUser.includes("PRODUCER_KILL_OPEN")) {
+      const ready = path.join(home, "process-interruption-ready.json")
+      await fs.writeFile(`${ready}.tmp`, JSON.stringify({ runId: interruptedRunId, providerCalls }))
+      await fs.rename(`${ready}.tmp`, ready)
+      // The parent test kills this owned process while the actual provider
+      // dispatch is pending. No graceful cancellation or settlement runs.
+      return await new Promise<Response>(() => {})
+    }
     const wantsMcp = !!mcpAlias && !hasResult
     const wantsTask = latestUser.includes("PRODUCER_TASK_") && offers("task") && !hasResult
     const wantsRead = latestUser.includes("PRODUCER_READ") && offers("read") && !hasResult
@@ -364,6 +373,37 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "kill-open") {
+        const reviewed = await active()
+        await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+        interruptedRunId = reviewed.runId
+        await textPrompt(reviewed.runId, "PRODUCER_KILL_OPEN")
+        assert.fail("The parent must kill the fixture before provider settlement")
+      } else if (phase === "restart-open") {
+        const ready = JSON.parse(await fs.readFile(path.join(home, "process-interruption-ready.json"), "utf8")) as {
+          runId: string
+          providerCalls: number
+        }
+        assert.ok(ready.providerCalls > 0)
+        const before = await readRunEvents(ready.runId)
+        const state = (await projectRunStateFromEvents(ready.runId))!
+        assert.equal(state.status, "running")
+        assert.equal(state.assistantHistory.unsettledMessageIds.length, 1)
+        const messages = await Session.messages({ sessionID: ready.runId })
+        const error = await SessionPrompt.loop({ sessionID: ready.runId, completionPolicy: "on_provider_stop" }).then(
+          () => undefined,
+          (error) => error,
+        )
+        assert.equal(error?.code, "assistant_provenance_recovery_required")
+        assert.equal(providerCalls, 0)
+        assert.deepEqual(await readRunEvents(ready.runId), before)
+        assert.deepEqual(await Session.messages({ sessionID: ready.runId }), messages)
+        assert.deepEqual(reduceRunState(before), state)
+        assert.equal(
+          before.some((event) => ["artifact_recorded", "run_completed", "workflow_completed"].includes(event.type)),
+          false,
+        )
+        controls.push("compiled-OS-kill-open-message-recovery-no-provider-replay")
       } else if (phase === "mcp") {
         assert.ok(mcpFixtures)
         const families = ["tool", "resource", "prompt"] as const

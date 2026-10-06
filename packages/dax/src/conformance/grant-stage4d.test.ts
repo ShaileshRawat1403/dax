@@ -108,6 +108,46 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const interrupted = Bun.spawn([first, home, "kill-open"], {
+        cwd: path.resolve(import.meta.dir, "../.."),
+        env,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const interruptedStdout = new Response(interrupted.stdout).text()
+      const interruptedStderr = new Response(interrupted.stderr).text()
+      try {
+        const deadline = Date.now() + 30_000
+        const ready = path.join(home, "process-interruption-ready.json")
+        while (true) {
+          if (
+            await fs.stat(ready).then(
+              () => true,
+              (error) => {
+                if (error.code === "ENOENT") return false
+                throw error
+              },
+            )
+          )
+            break
+          if (interrupted.exitCode !== null)
+            throw new Error("Interruption producer exited before durable provider dispatch")
+          if (Date.now() >= deadline) throw new Error("Interruption producer never reached durable provider dispatch")
+          await Bun.sleep(25)
+        }
+        interrupted.kill("SIGKILL")
+        expect(await interrupted.exited).not.toBe(0)
+      } finally {
+        if (interrupted.exitCode === null) interrupted.kill("SIGKILL")
+        const [status, stdout, stderr] = await Promise.all([interrupted.exited, interruptedStdout, interruptedStderr])
+        if (logDir)
+          await fs.writeFile(path.join(logDir, "d1-producer-OS-kill.log"), JSON.stringify({ status, stdout, stderr }))
+      }
+      const restarted = JSON.parse(
+        (await run("restart-open", [first, home, "restart-open"])).trim().split("\n").at(-1)!,
+      )
+      expect(restarted.controls).toEqual(["compiled-OS-kill-open-message-recovery-no-provider-replay"])
+      expect(restarted.providerCalls).toBe(0)
       const mcp = JSON.parse((await run("mcp", [first, home, "mcp"])).trim().split("\n").at(-1)!)
       expect(mcp.controls).toEqual([
         "compiled-MCP-tool-actual-call",
@@ -176,7 +216,17 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(missing.controls).toEqual(["unknown-image-remote-only-denied"])
       expect(missing.providerCalls).toBe(0)
       console.log(
-        JSON.stringify({ stage4d: matrix, mcp, delegation, graph, api, otherImage: other, source, unknown: missing }),
+        JSON.stringify({
+          stage4d: matrix,
+          restarted,
+          mcp,
+          delegation,
+          graph,
+          api,
+          otherImage: other,
+          source,
+          unknown: missing,
+        }),
       )
     } finally {
       await fs.rm(home, { recursive: true, force: true })

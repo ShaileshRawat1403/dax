@@ -16,14 +16,29 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Real interruption acceptance — 2026-10-06
+
+A fixture-owned compiled process is now terminated during an actual pending
+assistant dispatch. Fresh-process resume requires recovery, makes no model calls
+and leaves the journal and messages unchanged. See
+[the bounded acceptance record](tooling/compiled-process-interruption-validation.md).
+Full local gates pass 2,377 tests; exact-candidate CI and final path inventory
+remain required. This is not proof of every possible crash window.
+
+The patched dependency/recovery checkpoint `ad39457` passed
+[CI on all three platforms](https://github.com/ShaileshRawat1403/dax/actions/runs/37399785188),
+including strict Windows recovery cleanup (165 ms). The original OS cause remains
+unestablished. No merge or release; candidate grant gaps remain open.
+
 ## Compiled MCP acceptance — 2026-10-06
 
 Actual SDK tool, resource and prompt calls now pass through the compiled reviewed
 producer. Cross-server requests leave all three server effect counters at zero;
 replay and journal privacy controls pass. See
 [the acceptance record](tooling/compiled-mcp-producer-validation.md).
-Full gates pass 2,377 tests. Real process-interruption acceptance and the final
-execution-path inventory still block grant-gap closure and release readiness.
+Full gates pass 2,377 tests. The later interruption slice supplies one real
+OS-boundary control; exact-candidate CI and the final execution-path inventory
+still block grant-gap closure and release readiness.
 
 ## Dependency audit correction candidate — 2026-10-06
 
