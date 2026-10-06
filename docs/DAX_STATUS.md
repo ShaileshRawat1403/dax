@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Compiled MCP acceptance — 2026-10-06
+
+Actual SDK tool, resource and prompt calls now pass through the compiled reviewed
+producer. Cross-server requests leave all three server effect counters at zero;
+replay and journal privacy controls pass. See
+[the acceptance record](tooling/compiled-mcp-producer-validation.md).
+Full gates pass 2,377 tests. Real process-interruption acceptance and the final
+execution-path inventory still block grant-gap closure and release readiness.
+
 ## Dependency audit correction candidate — 2026-10-06
 
 New high/critical advisories stopped hosted validation before tests. The bounded

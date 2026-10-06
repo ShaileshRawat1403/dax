@@ -108,6 +108,17 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const mcp = JSON.parse((await run("mcp", [first, home, "mcp"])).trim().split("\n").at(-1)!)
+      expect(mcp.controls).toEqual([
+        "compiled-MCP-tool-actual-call",
+        "compiled-MCP-resource-actual-read",
+        "compiled-MCP-prompt-actual-fetch",
+        "compiled-MCP-cross-server-zero-effects-and-replay",
+      ])
+      expect(mcp.mcpCalls).toEqual({
+        gamma: { tool: 1, resource: 1, prompt: 1 },
+        delta: { tool: 0, resource: 0, prompt: 0 },
+      })
       const delegation = JSON.parse((await run("delegation", [first, home, "delegation"])).trim().split("\n").at(-1)!)
       expect(delegation.controls).toEqual([
         "compiled-TaskTool-fresh-child-real-read",
@@ -164,7 +175,9 @@ describe("stage 4d genuine compiled production authority", () => {
       const missing = JSON.parse((await run("unknown", [unknown, home, "unknown"])).trim().split("\n").at(-1)!)
       expect(missing.controls).toEqual(["unknown-image-remote-only-denied"])
       expect(missing.providerCalls).toBe(0)
-      console.log(JSON.stringify({ stage4d: matrix, api, otherImage: other, source, unknown: missing }))
+      console.log(
+        JSON.stringify({ stage4d: matrix, mcp, delegation, graph, api, otherImage: other, source, unknown: missing }),
+      )
     } finally {
       await fs.rm(home, { recursive: true, force: true })
     }

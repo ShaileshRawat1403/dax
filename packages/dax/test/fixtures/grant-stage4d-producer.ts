@@ -1,5 +1,15 @@
 /** Genuine compiled production modules; no image, authority, dispatch or provider spies. */
 import assert from "node:assert/strict"
+import { Server as McpServer } from "@modelcontextprotocol/sdk/server/index.js"
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { Global } from "@/global"
@@ -37,6 +47,62 @@ const directory = path.join(home, "project")
 const evidence = path.join(directory, "evidence.txt")
 const sentinel = path.join(directory, "shell-effect")
 let providerCalls = 0
+async function controlledMcp() {
+  const calls = { tool: 0, resource: 0, prompt: 0 }
+  const sessions = new Map<string, { protocol: McpServer; transport: WebStandardStreamableHTTPServerTransport }>()
+  const http = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      const id = request.headers.get("mcp-session-id")
+      let session = id ? sessions.get(id) : undefined
+      if (!session && !id && request.method === "POST") {
+        const protocol = new McpServer(
+          { name: "compiled controlled MCP", version: "1" },
+          { capabilities: { tools: {}, resources: {}, prompts: {} } },
+        )
+        const transport = new WebStandardStreamableHTTPServerTransport({
+          sessionIdGenerator: () => crypto.randomUUID(),
+          enableJsonResponse: false,
+        })
+        protocol.setRequestHandler(ListToolsRequestSchema, async () => ({
+          tools: [{ name: "probe", description: "Controlled effect", inputSchema: { type: "object", properties: {} } }],
+        }))
+        protocol.setRequestHandler(CallToolRequestSchema, async () => {
+          calls.tool++
+          return { content: [{ type: "text", text: "MCP tool effect" }] }
+        })
+        protocol.setRequestHandler(ListResourcesRequestSchema, async () => ({
+          resources: [{ name: "private fixture", uri: "fixture://private-resource", mimeType: "text/plain" }],
+        }))
+        protocol.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+          calls.resource++
+          return { contents: [{ uri: request.params.uri, mimeType: "text/plain", text: "MCP resource effect" }] }
+        })
+        protocol.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [{ name: "private-prompt" }] }))
+        protocol.setRequestHandler(GetPromptRequestSchema, async () => {
+          calls.prompt++
+          return { messages: [{ role: "user", content: { type: "text", text: "MCP prompt effect" } }] }
+        })
+        await protocol.connect(transport)
+        session = { protocol, transport }
+        const response = await transport.handleRequest(request)
+        sessions.set(transport.sessionId!, session)
+        return response
+      }
+      return session ? session.transport.handleRequest(request) : new Response("Unknown MCP session", { status: 404 })
+    },
+  })
+  return {
+    calls,
+    config: { type: "remote" as const, url: `http://127.0.0.1:${http.port}/mcp`, oauth: false, timeout: 3000 },
+    async close() {
+      await Promise.all([...sessions.values()].map(({ protocol }) => protocol.close()))
+      await http.stop(true)
+    },
+  }
+}
+const mcpFixtures = phase === "mcp" ? { gamma: await controlledMcp(), delta: await controlledMcp() } : undefined
 async function awaitRunCompletion(runId: string) {
   const deadline = Date.now() + 30_000
   while (true) {
@@ -71,51 +137,70 @@ const model = Bun.serve({
     const latestUser = JSON.stringify(input.messages[userIndex]?.content ?? "")
     const hasResult = input.messages.slice(userIndex + 1).some((message) => message.role === "tool")
     const offers = (name: string) => input.tools?.some((tool) => tool.function?.name === name) === true
+    const mcpAlias = ["gamma_probe", "delta_probe"].find(
+      (name) => offers(name) && latestUser.includes(`PRODUCER_MCP_${name}`),
+    )
+    const wantsMcp = !!mcpAlias && !hasResult
     const wantsTask = latestUser.includes("PRODUCER_TASK_") && offers("task") && !hasResult
     const wantsRead = latestUser.includes("PRODUCER_READ") && offers("read") && !hasResult
     const taskId = latestUser.match(/PRODUCER_TASK_RESUME (ses_[a-zA-Z0-9_-]+)/)?.[1]
-    const choice = wantsTask
+    const choice = wantsMcp
       ? {
           delta: {
             role: "assistant",
             tool_calls: [
               {
                 index: 0,
-                id: `call_task_${providerCalls}`,
+                id: `call_mcp_${providerCalls}`,
                 type: "function",
-                function: {
-                  name: "task",
-                  arguments: JSON.stringify({
-                    description: "Inspect controlled evidence",
-                    prompt: "PRODUCER_READ: inspect the evidence file.",
-                    subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
-                      ? "deliberately_missing_agent"
-                      : "general",
-                    ...(taskId ? { task_id: taskId } : {}),
-                  }),
-                },
+                function: { name: mcpAlias, arguments: "{}" },
               },
             ],
           },
           finish_reason: null,
         }
-      : wantsRead
+      : wantsTask
         ? {
             delta: {
               role: "assistant",
               tool_calls: [
                 {
                   index: 0,
-                  id: `call_read_${providerCalls}`,
+                  id: `call_task_${providerCalls}`,
                   type: "function",
-                  function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                  function: {
+                    name: "task",
+                    arguments: JSON.stringify({
+                      description: "Inspect controlled evidence",
+                      prompt: "PRODUCER_READ: inspect the evidence file.",
+                      subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
+                        ? "deliberately_missing_agent"
+                        : "general",
+                      ...(taskId ? { task_id: taskId } : {}),
+                    }),
+                  },
                 },
               ],
             },
             finish_reason: null,
           }
-        : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
-    const finish = wantsTask || wantsRead ? "tool_calls" : "stop"
+        : wantsRead
+          ? {
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call_read_${providerCalls}`,
+                    type: "function",
+                    function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                  },
+                ],
+              },
+              finish_reason: null,
+            }
+          : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
+    const finish = wantsMcp || wantsTask || wantsRead ? "tool_calls" : "stop"
     const data =
       [choice, { delta: {}, finish_reason: finish }]
         .map(
@@ -143,7 +228,9 @@ if (phase !== "api-start-child")
         },
       },
       permission: { "*": "allow" },
-      mcp: { gamma: { type: "remote", url: "http://127.0.0.1:9/fixture", enabled: false } },
+      mcp: mcpFixtures
+        ? { gamma: mcpFixtures.gamma.config, delta: mcpFixtures.delta.config }
+        : { gamma: { type: "remote", url: "http://127.0.0.1:9/fixture", enabled: false } },
     }),
   )
 await fs.mkdir(directory, { recursive: true })
@@ -277,6 +364,118 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "mcp") {
+        assert.ok(mcpFixtures)
+        const families = ["tool", "resource", "prompt"] as const
+        const reviewed = await createGrantReviewedRun(
+          { request, availableTools: ["gamma_probe", "delta_probe"] },
+          {
+            acknowledgedExternal: families.map((family) => `mcp_source:${family}:gamma`),
+            sourceSelections: families.map((family) => ({ server: "gamma", family })),
+          },
+        )
+        await approve(reviewed)
+        await publish(reviewed)
+        await GrantReview.activate(reviewed.runId)
+        await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+        const runId = reviewed.runId
+        await textPrompt(runId, "PRODUCER_MCP_gamma_probe")
+        assert.equal(mcpFixtures.gamma.calls.tool, 1)
+        assert.ok(
+          Object.values((await projectRunStateFromEvents(runId))!.invocations).some(
+            (invocation) => invocation.status === "completed" && invocation.toolId === "gamma_probe",
+          ),
+        )
+        controls.push("compiled-MCP-tool-actual-call")
+        const resource = (clientName: string) =>
+          SessionPrompt.prompt({
+            sessionID: runId,
+            model: modelSelection,
+            completionPolicy: "explicit",
+            parts: [
+              { type: "text", text: "Inspect resource" },
+              {
+                type: "file",
+                mime: "text/plain",
+                filename: "fixture",
+                url: "fixture://private-resource",
+                source: {
+                  type: "resource",
+                  clientName,
+                  uri: "fixture://private-resource",
+                  text: { value: "@fixture", start: 0, end: 8 },
+                },
+              },
+            ],
+          })
+        await resource("gamma")
+        assert.equal(mcpFixtures.gamma.calls.resource, 1)
+        controls.push("compiled-MCP-resource-actual-read")
+        await SessionPrompt.command({
+          sessionID: runId,
+          command: "gamma:private-prompt",
+          arguments: "",
+          model: "stage4d/probe",
+        })
+        assert.equal(mcpFixtures.gamma.calls.prompt, 1)
+        controls.push("compiled-MCP-prompt-actual-fetch")
+        const deniedResource = await resource("delta").then(
+          () => undefined,
+          (error) => error,
+        )
+        assert.ok(deniedResource instanceof CapabilityActionDeniedError)
+        const deniedPrompt = await SessionPrompt.command({
+          sessionID: runId,
+          command: "delta:private-prompt",
+          arguments: "",
+          model: "stage4d/probe",
+        }).then(
+          () => undefined,
+          (error) => error,
+        )
+        assert.ok(deniedPrompt instanceof CapabilityActionDeniedError)
+        await textPrompt(runId, "PRODUCER_MCP_delta_probe")
+        assert.deepEqual(mcpFixtures.delta.calls, { tool: 0, resource: 0, prompt: 0 })
+        const messages = await Session.messages({ sessionID: runId })
+        assert.ok(
+          messages.some((message) =>
+            message.parts.some(
+              (part) =>
+                part.type === "tool" &&
+                part.state.status === "completed" &&
+                part.state.output.includes("MCP tool effect"),
+            ),
+          ),
+        )
+        for (const text of ["MCP resource effect", "MCP prompt effect"])
+          assert.ok(
+            messages.some((message) => message.parts.some((part) => part.type === "text" && part.text.includes(text))),
+          )
+        const events = await readRunEvents(runId)
+        for (const actionPath of ["mcp_tool", "mcp_resource", "mcp_prompt"]) {
+          assert.ok(
+            events.some(
+              (event) =>
+                event.type === "capability_resolution_recorded" &&
+                event.payload.path === actionPath &&
+                event.payload.enforcement === "enforced" &&
+                event.payload.decision === "allow",
+            ),
+          )
+          assert.ok(
+            events.some(
+              (event) =>
+                event.type === "capability_resolution_recorded" &&
+                event.payload.path === actionPath &&
+                event.payload.enforcement === "enforced" &&
+                event.payload.decision === "deny",
+            ),
+          )
+        }
+        assert.equal(JSON.stringify(events).includes("fixture://private-resource"), false)
+        assert.equal(JSON.stringify(events).includes("private-prompt"), false)
+        assert.deepEqual(reduceRunState(events), await projectRunStateFromEvents(runId))
+        controls.push("compiled-MCP-cross-server-zero-effects-and-replay")
       } else if (phase === "delegation") {
         const make = async (agent: string) => {
           const reviewed = await createGrantReviewedRun(
@@ -1209,11 +1408,13 @@ try {
       variant: typeof DAX_PRODUCER_VARIANT === "string" ? DAX_PRODUCER_VARIANT : "source",
       controls,
       providerCalls,
+      ...(mcpFixtures ? { mcpCalls: { gamma: mcpFixtures.gamma.calls, delta: mcpFixtures.delta.calls } } : {}),
     }),
   )
 } finally {
   model.stop(true)
   await Instance.disposeAll()
+  if (mcpFixtures) await Promise.all(Object.values(mcpFixtures).map((fixture) => fixture.close()))
 }
 
 // Production modules keep this one-shot fixture alive after disposal (specific handle unestablished).
