@@ -1,4 +1,8 @@
 import { EOL } from "os"
+import { resolveCapabilityAuthority } from "@/capability/authority"
+import { resolveExecutionAuthority } from "@/execution/contract-guardian"
+import { assertNoGrantReview } from "@/execution/grant-review-barrier"
+import { getRunAuthority, hasRunEvents } from "@/state/events/run-event-store"
 import { basename } from "path"
 import { Agent } from "../../../agent/agent"
 import { Provider } from "../../../provider/provider"
@@ -56,8 +60,29 @@ export const AgentCommand = cmd({
         const executor = ToolRegistry.executionIdentity(tool)
         const params = parseToolParams(args.params as string | undefined)
         const ctx = await createToolContext(agent)
+        // Debug explicitly creates a fresh, ungoverned operator context. It
+        // cannot inherit or borrow any reviewed/canonical run authority.
+        const session = await Session.get(ctx.sessionID)
+        await assertNoGrantReview(session.id)
+        const governing = await resolveExecutionAuthority(session.id, session.governingRunId)
+        if (
+          session.governingRunId !== undefined ||
+          governing.contract !== null ||
+          (await getRunAuthority(session.id)) !== null ||
+          (await hasRunEvents(session.id))
+        ) {
+          throw new Error("Debug tool execution requires a fresh ungoverned session")
+        }
+        const authority = resolveCapabilityAuthority({
+          path: "native_tool",
+          initiator: "operator",
+          contract: null,
+          executor: { kind: executor.kind, alias: toolID, descriptor: executor.capability },
+          directory: Instance.directory,
+          worktree: Instance.worktree,
+        })
         const result = await executor.execute.call(executor.receiver, params, ctx)
-        process.stdout.write(JSON.stringify({ tool: toolID, input: params, result }, null, 2) + EOL)
+        process.stdout.write(JSON.stringify({ tool: toolID, input: params, result, authority }, null, 2) + EOL)
         return
       }
 

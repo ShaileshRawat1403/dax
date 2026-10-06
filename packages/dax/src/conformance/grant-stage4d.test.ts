@@ -108,6 +108,17 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const debugOutput = (await run("debug", [first, home, "debug"])).trim().split("\n")
+      const debug = JSON.parse(debugOutput.pop()!)
+      const debugResult = JSON.parse(debugOutput.join("\n"))
+      expect(debug.controls).toEqual(["compiled-debug-handler-real-read-explicit-no-contract"])
+      expect(debugResult.authority).toMatchObject({
+        path: "native_tool",
+        basis: "no_contract",
+        enforcement: "record_only",
+        reasonCode: "no_governing_contract",
+      })
+      expect(debugResult.result.output).toContain("D1 compiled producer evidence")
       const identity = JSON.parse((await run("identity", [first, home, "identity"])).trim().split("\n").at(-1)!)
       expect(identity.controls).toEqual([
         "compiled-session-projectID-mismatch-before-model-and-journal",
@@ -239,6 +250,7 @@ describe("stage 4d genuine compiled production authority", () => {
       console.log(
         JSON.stringify({
           stage4d: matrix,
+          debug,
           identity,
           asked,
           sdlc,

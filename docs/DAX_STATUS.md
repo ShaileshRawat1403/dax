@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Explicit debug boundary — 2026-10-06
+
+The real debug handler now proves its fresh context has no run authority and
+uses the common no-contract lookup before its captured tool. It reports that
+compatibility basis without creating a canonical run. See
+[the validation record](tooling/debug-no-contract-boundary-validation.md).
+Full gates pass 2,377 tests; the initial timeout is retained without a root-cause
+claim. Exact-candidate CI and final inventory/ledger reconciliation remain.
+
 ## Session identity/authority integrity — 2026-10-06
 
 Compiled probes reproduced model dispatch from corrupt ownership metadata and

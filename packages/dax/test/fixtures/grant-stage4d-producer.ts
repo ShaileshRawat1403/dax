@@ -13,6 +13,7 @@ import {
 import fs from "node:fs/promises"
 import path from "node:path"
 import { Global } from "@/global"
+import { AgentCommand } from "@/cli/cmd/debug/agent"
 import { verifySdlc } from "@/sdlc/verify-session"
 import { GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { Config } from "@/config/config"
@@ -376,6 +377,32 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "debug") {
+        const before = []
+        for await (const session of Session.list()) before.push(session.id)
+        const cwd = process.cwd()
+        try {
+          process.chdir(directory)
+          const handler = AgentCommand.handler
+          assert.equal(typeof handler, "function")
+          await handler!({
+            name: "build",
+            tool: "read",
+            params: JSON.stringify({ filePath: evidence }),
+            _: [],
+            $0: "dax",
+          } as Parameters<NonNullable<typeof AgentCommand.handler>>[0])
+        } finally {
+          process.chdir(cwd)
+        }
+        const created = []
+        for await (const session of Session.list()) if (!before.includes(session.id)) created.push(session)
+        assert.equal(created.length, 1)
+        assert.equal(created[0]!.governingRunId, undefined)
+        assert.equal(await readContract(created[0]!.id), null)
+        assert.deepEqual(await readRunEvents(created[0]!.id), [])
+        assert.equal(providerCalls, 0)
+        controls.push("compiled-debug-handler-real-read-explicit-no-contract")
       } else if (phase === "identity") {
         for (const field of ["projectID", "id"] as const) {
           const reviewed = await active()
