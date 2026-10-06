@@ -97,12 +97,13 @@
     "typescript": "catalog:"
   },
   "overrides": {
+    "proxy-addr": "^2.0.8",
     "protobufjs": "^7.6.5",
     "hono": "^4.12.29",
     "@hono/node-server": "^1.19.10",
     "@grpc/grpc-js": "^1.14.4",
     "axios": "^1.15.2",
-    "seroval": "^1.5.4",
+    "seroval": "^1.6.3",
     "minimatch": "^10.2.1",
     "path-to-regexp": "^8.4.2",
     "fast-uri": "^3.1.6",

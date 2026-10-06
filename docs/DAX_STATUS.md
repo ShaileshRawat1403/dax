@@ -16,6 +16,13 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Dependency audit correction candidate — 2026-10-06
+
+New high/critical advisories stopped hosted validation before tests. The bounded
+[dependency correction](tooling/serialization-proxy-dependency-validation.md)
+resolves proxy-addr 2.0.8 and Seroval 1.6.8 and passes the existing high-threshold
+lock audit. Fresh installation, full gates and exact-commit CI remain required.
+
 ## Recovery fixture correction — 2026-10-06
 
 A Windows recovery hook timeout is retained. The test now owns its project,

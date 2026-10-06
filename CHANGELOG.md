@@ -195,6 +195,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Update locked proxy-addr and Seroval dependencies for published high/critical
+  advisories while retaining the existing dependency audit threshold.
+
 - TaskTool allocates a new child prompt after forked history so the child selects
   its actual instruction, and omits unspecified model metadata so completed
   inherited-model delegations pass JSON result validation.
