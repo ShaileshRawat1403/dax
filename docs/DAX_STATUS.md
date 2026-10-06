@@ -16,6 +16,17 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Remaining compiled mediation controls — 2026-10-06
+
+Actual operator/command shell denials, @reference and attachment content reads,
+and allowed-read/denied-write batch leaves now pass the compiled producer matrix.
+[The acceptance record](tooling/compiled-final-mediation-validation.md) retains
+full gates (2,377 passed). The debug checkpoint's Windows run exposed an unchanged
+RAO filter-test timeout; that failure is retained for a separate correction.
+The remaining grant ledger has older usable-binding wording that must be
+reconciled explicitly with the approved safe-denial scope before any closure.
+No merge or release is claimed.
+
 ## Explicit debug boundary — 2026-10-06
 
 The real debug handler now proves its fresh context has no run authority and

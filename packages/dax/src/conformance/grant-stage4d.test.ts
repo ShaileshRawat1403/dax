@@ -108,6 +108,13 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const paths = JSON.parse((await run("paths", [first, home, "paths"])).trim().split("\n").at(-1)!)
+      expect(paths.controls).toEqual([
+        "compiled-operator-shell-denial-before-process-effect",
+        "compiled-command-shell-denial-before-snippet-effect",
+        "compiled-template-and-attachment-real-content-and-replay",
+        "compiled-batch-allowed-read-and-denied-write-zero-effect",
+      ])
       const debugOutput = (await run("debug", [first, home, "debug"])).trim().split("\n")
       const debug = JSON.parse(debugOutput.pop()!)
       const debugResult = JSON.parse(debugOutput.join("\n"))
@@ -250,6 +257,7 @@ describe("stage 4d genuine compiled production authority", () => {
       console.log(
         JSON.stringify({
           stage4d: matrix,
+          paths,
           debug,
           identity,
           asked,

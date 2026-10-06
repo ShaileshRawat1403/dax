@@ -12,6 +12,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { Global } from "@/global"
 import { AgentCommand } from "@/cli/cmd/debug/agent"
 import { verifySdlc } from "@/sdlc/verify-session"
@@ -154,66 +155,93 @@ const model = Bun.serve({
       return await new Promise<Response>(() => {})
     }
     const wantsMcp = !!mcpAlias && !hasResult
+    const wantsBatch = latestUser.includes("PRODUCER_BATCH") && offers("batch") && !hasResult
     const wantsTask = latestUser.includes("PRODUCER_TASK_") && offers("task") && !hasResult
     const wantsRead = latestUser.includes("PRODUCER_READ") && offers("read") && !hasResult
     const taskId = latestUser.match(/PRODUCER_TASK_RESUME (ses_[a-zA-Z0-9_-]+)/)?.[1]
-    const choice = wantsMcp
+    const choice = wantsBatch
       ? {
           delta: {
             role: "assistant",
             tool_calls: [
               {
                 index: 0,
-                id: `call_mcp_${providerCalls}`,
+                id: `call_batch_${providerCalls}`,
                 type: "function",
-                function: { name: mcpAlias, arguments: "{}" },
+                function: {
+                  name: "batch",
+                  arguments: JSON.stringify({
+                    tool_calls: [
+                      { tool: "read", parameters: { filePath: evidence } },
+                      {
+                        tool: "write",
+                        parameters: { filePath: path.join(directory, "batch-forbidden"), content: "must not write" },
+                      },
+                    ],
+                  }),
+                },
               },
             ],
           },
           finish_reason: null,
         }
-      : wantsTask
+      : wantsMcp
         ? {
             delta: {
               role: "assistant",
               tool_calls: [
                 {
                   index: 0,
-                  id: `call_task_${providerCalls}`,
+                  id: `call_mcp_${providerCalls}`,
                   type: "function",
-                  function: {
-                    name: "task",
-                    arguments: JSON.stringify({
-                      description: "Inspect controlled evidence",
-                      prompt: "PRODUCER_READ: inspect the evidence file.",
-                      subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
-                        ? "deliberately_missing_agent"
-                        : "general",
-                      ...(taskId ? { task_id: taskId } : {}),
-                    }),
-                  },
+                  function: { name: mcpAlias, arguments: "{}" },
                 },
               ],
             },
             finish_reason: null,
           }
-        : wantsRead
+        : wantsTask
           ? {
               delta: {
                 role: "assistant",
                 tool_calls: [
                   {
                     index: 0,
-                    id: `call_read_${providerCalls}`,
+                    id: `call_task_${providerCalls}`,
                     type: "function",
-                    function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                    function: {
+                      name: "task",
+                      arguments: JSON.stringify({
+                        description: "Inspect controlled evidence",
+                        prompt: "PRODUCER_READ: inspect the evidence file.",
+                        subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
+                          ? "deliberately_missing_agent"
+                          : "general",
+                        ...(taskId ? { task_id: taskId } : {}),
+                      }),
+                    },
                   },
                 ],
               },
               finish_reason: null,
             }
-          : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
-    const finish = wantsMcp || wantsTask || wantsRead ? "tool_calls" : "stop"
+          : wantsRead
+            ? {
+                delta: {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: `call_read_${providerCalls}`,
+                      type: "function",
+                      function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              }
+            : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
+    const finish = wantsBatch || wantsMcp || wantsTask || wantsRead ? "tool_calls" : "stop"
     const data =
       [choice, { delta: {}, finish_reason: finish }]
         .map(
@@ -241,6 +269,12 @@ if (phase !== "api-start-child")
         },
       },
       permission: { "*": "allow" },
+      ...(phase === "paths"
+        ? {
+            experimental: { batch_tool: true },
+            command: { guarded: { template: "!`bun -e \"require('fs').writeFileSync('command-forbidden', 'ran')\"`" } },
+          }
+        : {}),
       mcp: mcpFixtures
         ? { gamma: mcpFixtures.gamma.config, delta: mcpFixtures.delta.config }
         : { gamma: { type: "remote", url: "http://127.0.0.1:9/fixture", enabled: false } },
@@ -377,6 +411,128 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "paths") {
+        const make = async (tools = ["read"]) => {
+          const reviewed = await createGrantReviewedRun(
+            { request, availableTools: tools },
+            { writeScope: { roots: ["."], reviewed: true } },
+          )
+          await approve(reviewed)
+          await publish(reviewed)
+          await GrantReview.activate(reviewed.runId)
+          await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+          return reviewed.runId
+        }
+        const shellRun = await make()
+        await assert.rejects(
+          SessionPrompt.shell({
+            sessionID: shellRun,
+            agent: "build",
+            model: modelSelection,
+            command: "bun -e \"require('fs').writeFileSync('shell-forbidden', 'ran')\"",
+          }),
+        )
+        assert.equal(
+          await fs.stat(path.join(directory, "shell-forbidden")).then(
+            () => true,
+            () => false,
+          ),
+          false,
+        )
+        assert.ok(
+          (await readRunEvents(shellRun)).some(
+            (event) =>
+              event.type === "capability_resolution_recorded" &&
+              event.payload.path === "operator_shell" &&
+              event.payload.decision === "deny" &&
+              event.payload.enforcement === "enforced",
+          ),
+        )
+        controls.push("compiled-operator-shell-denial-before-process-effect")
+        const commandRun = await make()
+        await assert.rejects(
+          SessionPrompt.command({ sessionID: commandRun, command: "guarded", arguments: "", model: "stage4d/probe" }),
+        )
+        assert.equal(
+          await fs.stat(path.join(directory, "command-forbidden")).then(
+            () => true,
+            () => false,
+          ),
+          false,
+        )
+        assert.ok(
+          (await readRunEvents(commandRun)).some(
+            (event) =>
+              event.type === "capability_resolution_recorded" &&
+              event.payload.path === "command_shell" &&
+              event.payload.decision === "deny" &&
+              event.payload.enforcement === "enforced",
+          ),
+        )
+        controls.push("compiled-command-shell-denial-before-snippet-effect")
+        const contextRun = await make()
+        const parts = await SessionPrompt.resolvePromptParts("@evidence.txt", {
+          sessionID: contextRun,
+          initiator: "operator",
+        })
+        assert.ok(parts.some((part) => part.type === "file" && part.url === pathToFileURL(evidence).href))
+        await SessionPrompt.prompt({
+          sessionID: contextRun,
+          model: modelSelection,
+          completionPolicy: "explicit",
+          parts: [
+            { type: "text", text: "Inspect the attached evidence" },
+            { type: "file", filename: "evidence.txt", mime: "text/plain", url: pathToFileURL(evidence).href },
+          ],
+        })
+        assert.ok(
+          (await Session.messages({ sessionID: contextRun })).some((message) =>
+            message.parts.some((part) => part.type === "text" && part.text.includes("D1 compiled producer evidence")),
+          ),
+        )
+        const contextEvents = await readRunEvents(contextRun)
+        for (const actionPath of ["template_reference", "context_attachment"])
+          assert.ok(
+            contextEvents.some(
+              (event) =>
+                event.type === "capability_resolution_recorded" &&
+                event.payload.path === actionPath &&
+                event.payload.decision === "allow" &&
+                event.payload.enforcement === "enforced",
+            ),
+          )
+        assert.deepEqual(reduceRunState(contextEvents), await projectRunStateFromEvents(contextRun))
+        controls.push("compiled-template-and-attachment-real-content-and-replay")
+        const batchRun = await make(["batch", "read"])
+        await textPrompt(batchRun, "PRODUCER_BATCH")
+        const batchState = (await projectRunStateFromEvents(batchRun))!
+        assert.ok(
+          Object.values(batchState.invocations).some(
+            (invocation) => invocation.toolId === "read" && invocation.status === "completed",
+          ),
+        )
+        assert.ok(
+          Object.values(batchState.invocations).some(
+            (invocation) => invocation.toolId === "write" && invocation.status === "denied",
+          ),
+        )
+        assert.ok(
+          batchState.capabilityResolutions.some(
+            (resolution) =>
+              resolution.path === "batch_leaf" &&
+              resolution.decision === "deny" &&
+              resolution.enforcement === "enforced",
+          ),
+        )
+        assert.equal(
+          await fs.stat(path.join(directory, "batch-forbidden")).then(
+            () => true,
+            () => false,
+          ),
+          false,
+        )
+        assert.deepEqual(reduceRunState(await readRunEvents(batchRun)), batchState)
+        controls.push("compiled-batch-allowed-read-and-denied-write-zero-effect")
       } else if (phase === "debug") {
         const before = []
         for await (const session of Session.list()) before.push(session.id)
