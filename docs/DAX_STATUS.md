@@ -16,6 +16,14 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Recovery fixture correction — 2026-10-06
+
+A Windows recovery hook timeout is retained. The test now owns its project,
+awaits strict cleanup and records teardown timing; full gates pass 2,377 tests.
+See [the validation record](tooling/recovery-owned-fixture-validation.md).
+Windows hosted acceptance remains pending. New dependency advisories blocked
+CI before tests and require a separate patched dependency candidate.
+
 ## Compiled delegation correction — 2026-10-06
 
 Real compiled TaskTool acceptance found and corrected child-turn ordering and

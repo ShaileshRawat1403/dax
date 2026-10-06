@@ -3,7 +3,9 @@ import { createEventAuthorityRun } from "@/state/events/event-transitions"
 import { getProjectedRunState } from "@/state/events/run-event-store"
 import os from "os"
 import path from "path"
-import { mkdtempSync, rmSync } from "fs"
+import { existsSync, mkdirSync, mkdtempSync } from "node:fs"
+import fs from "node:fs/promises"
+import { Instance } from "@/project/instance"
 
 const testHome = mkdtempSync(path.join(os.tmpdir(), "dax-recovery-"))
 const previousHome = process.env.DAX_TEST_HOME
@@ -11,7 +13,8 @@ process.env.DAX_TEST_HOME = testHome
 
 const mod = async () => await import("./recovery")
 const store = async () => (await import("./run-store")).RunStore
-const repoRoot = path.resolve(import.meta.dir, "../../..")
+const repoRoot = path.join(testHome, "project")
+mkdirSync(repoRoot, { recursive: true })
 
 /** RunStore needs an Instance context, same as the sibling state tests. */
 async function inRepo<T>(body: () => Promise<T>): Promise<T> {
@@ -19,12 +22,18 @@ async function inRepo<T>(body: () => Promise<T>): Promise<T> {
   // DAX_TEST_HOME does so at import time, so in a full run the last module
   // loaded wins and this file's runs land in a home it does not read back.
   process.env.DAX_TEST_HOME = testHome
-  const { bootstrap } = await import("@/cli/bootstrap")
-  let out: T
-  await bootstrap(repoRoot, async () => {
-    out = await body()
+  // Recovery needs project/storage identity, not CLI watchers, formatters,
+  // repository scans or a best-effort startup recovery notice.
+  return Instance.provide({
+    directory: repoRoot,
+    fn: async () => {
+      try {
+        return await body()
+      } finally {
+        await Instance.dispose()
+      }
+    },
   })
-  return out!
 }
 
 /** Fixed ids collided across runs sharing a home; the ordering they encode (aaa before zzz) is what the paging case tests, so keep that and make the rest unique. */
@@ -59,36 +68,45 @@ async function strandedRun(status: "running" | "queued" | "waiting_approval", ag
   return id
 }
 
-afterAll(() => {
-  if (previousHome === undefined) delete process.env.DAX_TEST_HOME
-  else process.env.DAX_TEST_HOME = previousHome
-  rmSync(testHome, { recursive: true, force: true })
-})
+afterAll(async () => {
+  const started = performance.now()
+  console.info("recovery fixture cleanup started")
+  try {
+    // The paging control owns 120 full durable lifecycles. Cleanup is awaited,
+    // has no retries, and must remove the entire population on every platform.
+    await fs.rm(testHome, { recursive: true, force: true })
+    expect(existsSync(testHome)).toBe(false)
+    console.info(`recovery fixture cleanup completed in ${Math.round(performance.now() - started)}ms`)
+  } finally {
+    if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+    else process.env.DAX_TEST_HOME = previousHome
+  }
+}, 30_000)
 
 describe("stranded runs", () => {
   test("a run whose process is gone is found, not left claiming to be live", async () => {
     return inRepo(async () => {
-    // Measured on a real run: kill the process mid-flight and the persisted
-    // state stays status "running", error null, completedAt null, forever.
-    // recoverRun replays the log and reports the same thing back; nothing in
-    // DAX could move it on.
-    const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const stranded = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      // Measured on a real run: kill the process mid-flight and the persisted
+      // state stays status "running", error null, completedAt null, forever.
+      // recoverRun replays the log and reports the same thing back; nothing in
+      // DAX could move it on.
+      const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const stranded = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
 
-    const found = await listInterruptedRuns()
+      const found = await listInterruptedRuns()
 
-    expect(found.map((run) => run.runId)).toContain(stranded)
+      expect(found.map((run) => run.runId)).toContain(stranded)
     })
   })
 
   test("a run that is merely slow is left alone", async () => {
     return inRepo(async () => {
-    const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const busy = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS / 4)
+      const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const busy = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS / 4)
 
-    const found = await listInterruptedRuns()
+      const found = await listInterruptedRuns()
 
-    expect(found.map((run) => run.runId)).not.toContain(busy)
+      expect(found.map((run) => run.runId)).not.toContain(busy)
     })
   })
 
@@ -133,16 +151,16 @@ describe("stranded runs", () => {
 
   test("every non-terminal status can strand, not just running", async () => {
     return inRepo(async () => {
-    // A run can die waiting for an approval that will never be answered, or
-    // sitting in the queue. Those lie in the ledger exactly as loudly.
-    const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const queued = await strandedRun("queued", INTERRUPTED_RUN_THRESHOLD_MS * 2)
-    const waiting = await strandedRun("waiting_approval", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      // A run can die waiting for an approval that will never be answered, or
+      // sitting in the queue. Those lie in the ledger exactly as loudly.
+      const { listInterruptedRuns, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const queued = await strandedRun("queued", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      const waiting = await strandedRun("waiting_approval", INTERRUPTED_RUN_THRESHOLD_MS * 2)
 
-    const ids = (await listInterruptedRuns()).map((run) => run.runId)
+      const ids = (await listInterruptedRuns()).map((run) => run.runId)
 
-    expect(ids).toContain(queued)
-    expect(ids).toContain(waiting)
+      expect(ids).toContain(queued)
+      expect(ids).toContain(waiting)
     })
   })
 })
@@ -150,53 +168,53 @@ describe("stranded runs", () => {
 describe("closing out a stranded run", () => {
   test("it is marked failed with a reason, not silently completed", async () => {
     return inRepo(async () => {
-    const { markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      const { markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
 
-    const result = await markRunInterrupted(id)
+      const result = await markRunInterrupted(id)
 
-    expect(result?.status).toBe("failed")
-    expect(result?.error?.code).toBe("run_interrupted")
-    expect(result?.error?.message).toContain("running")
-    expect(result?.completedAt).toBeDefined()
+      expect(result?.status).toBe("failed")
+      expect(result?.error?.code).toBe("run_interrupted")
+      expect(result?.error?.message).toContain("running")
+      expect(result?.completedAt).toBeDefined()
     })
   })
 
   test("the failure is retryable, because the work was interrupted and not rejected", async () => {
     return inRepo(async () => {
-    const { markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      const { markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
 
-    expect((await markRunInterrupted(id))?.error?.retryable).toBe(true)
+      expect((await markRunInterrupted(id))?.error?.retryable).toBe(true)
     })
   })
 
   test("a run that already finished is never rewritten", async () => {
     return inRepo(async () => {
-    // Marking a completed run as interrupted would be the ledger lying in the
-    // other direction.
-    const { markRunInterrupted } = await mod()
-    const id = runId()
-    await createEventAuthorityRun(id, `ctr_${id}`)
+      // Marking a completed run as interrupted would be the ledger lying in the
+      // other direction.
+      const { markRunInterrupted } = await mod()
+      const id = runId()
+      await createEventAuthorityRun(id, `ctr_${id}`)
 
-    const { RunLifecycle } = await import("./run-lifecycle")
-    await RunLifecycle.transition(id, "queued", "execution_queued")
-    await RunLifecycle.transition(id, "running", "execution_started")
-    await RunLifecycle.transition(id, "completed", "run_completed")
+      const { RunLifecycle } = await import("./run-lifecycle")
+      await RunLifecycle.transition(id, "queued", "execution_queued")
+      await RunLifecycle.transition(id, "running", "execution_started")
+      await RunLifecycle.transition(id, "completed", "run_completed")
 
-    expect(await markRunInterrupted(id)).toBeUndefined()
-    expect((await getProjectedRunState(id))?.status).toBe("completed")
+      expect(await markRunInterrupted(id)).toBeUndefined()
+      expect((await getProjectedRunState(id))?.status).toBe("completed")
     })
   })
 
   test("once closed out, it stops being reported as stranded", async () => {
     return inRepo(async () => {
-    const { listInterruptedRuns, markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
-    const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
+      const { listInterruptedRuns, markRunInterrupted, INTERRUPTED_RUN_THRESHOLD_MS } = await mod()
+      const id = await strandedRun("running", INTERRUPTED_RUN_THRESHOLD_MS * 2)
 
-    await markRunInterrupted(id)
+      await markRunInterrupted(id)
 
-    expect((await listInterruptedRuns()).map((run) => run.runId)).not.toContain(id)
+      expect((await listInterruptedRuns()).map((run) => run.runId)).not.toContain(id)
     })
   })
 })
