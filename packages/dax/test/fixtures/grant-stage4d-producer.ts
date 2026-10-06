@@ -13,6 +13,7 @@ import {
 import fs from "node:fs/promises"
 import path from "node:path"
 import { Global } from "@/global"
+import { verifySdlc } from "@/sdlc/verify-session"
 import { GrantReviewBarrierError } from "@/execution/grant-review-barrier"
 import { Config } from "@/config/config"
 import { GrantReview } from "@/capability/grant-review"
@@ -373,6 +374,71 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "sdlc") {
+        await fs.writeFile(
+          path.join(directory, "package.json"),
+          JSON.stringify({
+            name: "owned-verification-control",
+            scripts: { test: "bun -e \"require('fs').writeFileSync('verification-effect', 'ran')\"" },
+          }),
+        )
+        const effect = path.join(directory, "verification-effect")
+        const reviewed = await active()
+        await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+        const before = await readRunEvents(reviewed.runId)
+        const error = await verifySdlc({ repoRoot: directory, runId: reviewed.runId }).then(
+          () => undefined,
+          (error) => error,
+        )
+        const effectExists = await fs.stat(effect).then(
+          () => true,
+          (error) => {
+            if (error.code === "ENOENT") return false
+            throw error
+          },
+        )
+        assert.ok(error instanceof CapabilityActionDeniedError, JSON.stringify({ error: error?.message, effectExists }))
+        assert.equal(effectExists, false)
+        const after = await readRunEvents(reviewed.runId)
+        assert.equal(after.length, before.length + 1)
+        assert.equal(after.at(-1)!.type, "capability_resolution_recorded")
+        assert.equal(after.at(-1)!.payload.path, "verification_command")
+        assert.equal(after.at(-1)!.payload.enforcement, "enforced")
+        assert.equal(after.at(-1)!.payload.decision, "deny")
+        const legacy = await verifySdlc({ repoRoot: directory })
+        assert.ok(legacy.report.checks.some((check) => check.id === "js-test" && check.status === "passed"))
+        assert.equal(await fs.readFile(effect, "utf8"), "ran")
+        await fs.unlink(effect)
+        const legacySession = await Session.create({ title: "Explicit v1 verification compatibility" })
+        const { compileWithRunId } = await import("@/execution/compiler")
+        await ContractGuardian.create(legacySession.id, compileWithRunId({ request }, legacySession.id).contract)
+        await Session.bindGoverningRun(legacySession.id, legacySession.id)
+        const v1 = await verifySdlc({ repoRoot: directory, runId: legacySession.id })
+        assert.equal(v1.report.runId, legacySession.id)
+        assert.equal(await fs.readFile(effect, "utf8"), "ran")
+        await fs.unlink(effect)
+        const missing = await verifySdlc({ repoRoot: directory, runId: "ses_missing_sdlc_reference" }).then(
+          () => undefined,
+          (error) => error,
+        )
+        assert.ok(missing instanceof CapabilityActionDeniedError)
+        assert.equal(missing.reasonCode, "authority_unreadable")
+        assert.equal(
+          await fs.stat(effect).then(
+            () => true,
+            (error) => {
+              if (error.code === "ENOENT") return false
+              throw error
+            },
+          ),
+          false,
+        )
+        assert.equal(providerCalls, 0)
+        assert.deepEqual(reduceRunState(after), await projectRunStateFromEvents(reviewed.runId))
+        controls.push("compiled-SDLC-explicit-reviewed-reference-no-command-effects")
+        controls.push("compiled-SDLC-unscoped-operator-real-command-compatibility")
+        controls.push("compiled-SDLC-v1-bound-reference-real-command-compatibility")
+        controls.push("compiled-SDLC-missing-session-reference-no-fallback-effects")
       } else if (phase === "kill-open") {
         const reviewed = await active()
         await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)

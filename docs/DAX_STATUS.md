@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Scoped SDLC verification correction — 2026-10-06
+
+A compiled probe reproduced command execution when the verification helper was
+given a reviewed session reference without a verifier grant. The
+[shared-lookup correction](tooling/scoped-sdlc-verification-validation.md) denies
+before inspection/launch and preserves real unscoped and bound-v1 operations.
+Missing references cannot fall back. Full gates pass 2,377 tests; exact-candidate
+CI and the final execution-path inventory remain required.
+
 ## Real interruption acceptance — 2026-10-06
 
 A fixture-owned compiled process is now terminated during an actual pending

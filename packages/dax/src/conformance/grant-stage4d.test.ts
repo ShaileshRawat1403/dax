@@ -108,6 +108,13 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const sdlc = JSON.parse((await run("sdlc", [first, home, "sdlc"])).trim().split("\n").at(-1)!)
+      expect(sdlc.controls).toEqual([
+        "compiled-SDLC-explicit-reviewed-reference-no-command-effects",
+        "compiled-SDLC-unscoped-operator-real-command-compatibility",
+        "compiled-SDLC-v1-bound-reference-real-command-compatibility",
+        "compiled-SDLC-missing-session-reference-no-fallback-effects",
+      ])
       const interrupted = Bun.spawn([first, home, "kill-open"], {
         cwd: path.resolve(import.meta.dir, "../.."),
         env,
@@ -218,6 +225,7 @@ describe("stage 4d genuine compiled production authority", () => {
       console.log(
         JSON.stringify({
           stage4d: matrix,
+          sdlc,
           restarted,
           mcp,
           delegation,

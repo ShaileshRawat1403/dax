@@ -195,6 +195,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Explicit session references in the SDLC verification API now resolve governing
+  authority before metadata inspection or command launch. Unsupported reviewed
+  verifier bindings and missing references fail closed; unscoped operator CLI
+  checks and valid v1 compatibility remain available. `ses`-prefixed correlation
+  labels now require a real session/project context.
+
 - Update locked proxy-addr and Seroval dependencies for published high/critical
   advisories while retaining the existing dependency audit threshold.
 

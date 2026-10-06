@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { listVerificationCommandCapabilities } from "./verification-identity"
 import { statSync } from "node:fs"
 import { detectChecks } from "./check-catalog"
 import { runCheck } from "./check-runner"
@@ -22,10 +23,30 @@ function blockingReasons(results: CheckResult[]): string[] {
 
 export async function verifySdlc(input: {
   repoRoot: string
+  /** Session-shaped IDs identify governing authority; other IDs only correlate receipts. */
   runId?: string
   native?: boolean
   security?: boolean
 }): Promise<{ report: VerificationReport; receipts: ReturnType<typeof createEvidenceReceipt>[] }> {
+  const governedSessionID = input.runId?.startsWith("ses") ? input.runId : undefined
+  const authorizeScopedCheck = async (subject: string) => {
+    if (!governedSessionID) return
+    const { recordActionResolution } = await import("@/capability/record-resolution")
+    // A canonical session reference cannot become an unscoped operator check.
+    // The shared lookup validates the session/owner and denies unsupported
+    // reviewed verifier bindings before even inspecting repository metadata.
+    await recordActionResolution({
+      governedBy: { sessionID: governedSessionID },
+      subject,
+      path: "verification_command",
+      initiator: "operator",
+      executor: {
+        kind: "builtin",
+        descriptor: listVerificationCommandCapabilities().find((item) => item.id === "verification.command.direct"),
+      },
+    })
+  }
+  await authorizeScopedCheck("sdlc_preflight")
   const stat = statSync(input.repoRoot, { throwIfNoEntry: false })
   if (!stat?.isDirectory()) {
     throw new Error(`Repository root does not exist or is not a directory: ${input.repoRoot}`)
@@ -36,6 +57,7 @@ export async function verifySdlc(input: {
   const results: CheckResult[] = []
 
   for (const check of checks) {
+    await authorizeScopedCheck(`sdlc_${check.id}`)
     results.push(await runCheck(check))
   }
 
