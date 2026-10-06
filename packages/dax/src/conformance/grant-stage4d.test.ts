@@ -108,6 +108,12 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const identity = JSON.parse((await run("identity", [first, home, "identity"])).trim().split("\n").at(-1)!)
+      expect(identity.controls).toEqual([
+        "compiled-session-projectID-mismatch-before-model-and-journal",
+        "compiled-session-id-mismatch-before-model-and-journal",
+        "compiled-owned-pending-review-cannot-borrow-another-root",
+      ])
       const asked = JSON.parse((await run("ask", [first, home, "ask"])).trim().split("\n").at(-1)!)
       expect(asked.controls).toEqual([
         "compiled-ask-zero-effects-before-route-approval",
@@ -233,6 +239,7 @@ describe("stage 4d genuine compiled production authority", () => {
       console.log(
         JSON.stringify({
           stage4d: matrix,
+          identity,
           asked,
           sdlc,
           restarted,

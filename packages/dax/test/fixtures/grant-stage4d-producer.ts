@@ -376,6 +376,70 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "identity") {
+        for (const field of ["projectID", "id"] as const) {
+          const reviewed = await active()
+          await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+          const info = await Session.get(reviewed.runId)
+          const before = await readRunEvents(reviewed.runId)
+          const calls = providerCalls
+          const other = await active()
+          await Storage.write(["session", Instance.project.id, reviewed.runId], {
+            ...info,
+            [field]: field === "id" ? other.runId : "foreign-owner",
+          })
+          try {
+            const error = await textPrompt(reviewed.runId, "PRODUCER_READ").then(
+              () => undefined,
+              (error) => error,
+            )
+            assert.equal(
+              error?.code,
+              "session_identity_mismatch",
+              JSON.stringify({
+                field,
+                error: error?.message,
+                modelCalls: providerCalls - calls,
+                newEvents: (await readRunEvents(reviewed.runId)).length - before.length,
+              }),
+            )
+            assert.equal(providerCalls, calls)
+            assert.deepEqual(await readRunEvents(reviewed.runId), before)
+          } finally {
+            await Storage.write(["session", Instance.project.id, reviewed.runId], info)
+          }
+          assert.equal((await Session.get(reviewed.runId)).id, reviewed.runId)
+          controls.push(`compiled-session-${field}-mismatch-before-model-and-journal`)
+        }
+        const pending = await create()
+        const other = await active()
+        await GrantReview.claimStart(other.runId, (await GrantReview.inspect(other.runId)).expected)
+        const info = await Session.get(pending.runId)
+        const beforePending = await readRunEvents(pending.runId)
+        const beforeOther = await readRunEvents(other.runId)
+        const calls = providerCalls
+        await Storage.write(["session", Instance.project.id, pending.runId], { ...info, governingRunId: other.runId })
+        try {
+          const error = await textPrompt(pending.runId, "PRODUCER_READ").then(
+            () => undefined,
+            (error) => error,
+          )
+          assert.equal(
+            error?.code,
+            "session_authority_mismatch",
+            JSON.stringify({
+              error: error?.message,
+              modelCalls: providerCalls - calls,
+              borrowedRootEvents: (await readRunEvents(other.runId)).length - beforeOther.length,
+            }),
+          )
+          assert.equal(providerCalls, calls)
+          assert.deepEqual(await readRunEvents(pending.runId), beforePending)
+          assert.deepEqual(await readRunEvents(other.runId), beforeOther)
+        } finally {
+          await Storage.write(["session", Instance.project.id, pending.runId], info)
+        }
+        controls.push("compiled-owned-pending-review-cannot-borrow-another-root")
       } else if (phase === "ask") {
         assert.ok(mcpFixtures)
         process.env.DAX_GRANT_ASK_TIMEOUT_MS = "20000"

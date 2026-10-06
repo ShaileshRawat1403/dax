@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
+import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -16,7 +17,10 @@ let testProject = ""
 
 beforeEach(async () => {
   previousTestHome = process.env.DAX_TEST_HOME
-  testHome = path.join(os.tmpdir(), `dax-contract-authority-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`)
+  testHome = path.join(
+    os.tmpdir(),
+    `dax-contract-authority-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+  )
   testProject = path.join(testHome, "project")
   process.env.DAX_TEST_HOME = testHome
   await fs.mkdir(testProject, { recursive: true })
@@ -77,9 +81,9 @@ describe("execution contract authority resolution", () => {
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Governed root" })
-        await expect(Session.bindGoverningRun(session.id, session.id)).resolves.toMatchObject({ governingRunId: session.id })
-        await expect(Session.bindGoverningRun(session.id, session.id)).resolves.toMatchObject({ governingRunId: session.id })
-        await expect(Session.bindGoverningRun(session.id, "ses_other_authority")).rejects.toThrow(/cannot rebind/i)
+        expect(await Session.bindGoverningRun(session.id, session.id)).toMatchObject({ governingRunId: session.id })
+        expect(await Session.bindGoverningRun(session.id, session.id)).toMatchObject({ governingRunId: session.id })
+        await assert.rejects(Session.bindGoverningRun(session.id, "ses_other_authority"), /cannot rebind/i)
       },
     })
   })
@@ -91,7 +95,7 @@ describe("execution contract authority resolution", () => {
         const session = await Session.create({ title: "Legacy governed root" })
         const contract = await createContract(session)
 
-        await expect(resolveExecutionAuthority(session.id)).resolves.toMatchObject({
+        expect(await resolveExecutionAuthority(session.id)).toMatchObject({
           governingRunId: session.id,
           contract: { contractId: contract.contractId },
         })
@@ -104,7 +108,7 @@ describe("execution contract authority resolution", () => {
       directory: testProject,
       async fn() {
         const session = await Session.create({ title: "Ungoverned session" })
-        await expect(resolveExecutionAuthority(session.id)).resolves.toEqual({ contract: null })
+        expect(await resolveExecutionAuthority(session.id)).toEqual({ contract: null })
       },
     })
   })
@@ -115,14 +119,15 @@ describe("execution contract authority resolution", () => {
       async fn() {
         const child = await Session.create({ title: "Governed child" })
         await Session.bindGoverningRun(child.id, "ses_missing_authority")
-        await expect(resolveExecutionAuthority(child.id, "ses_missing_authority")).rejects.toThrow(
+        await assert.rejects(
+          resolveExecutionAuthority(child.id, "ses_missing_authority"),
           /Governing ExecutionContract not found/i,
         )
 
         const root = await Session.create({ title: "Corrupt authority" })
         await Session.bindGoverningRun(root.id, root.id)
         await Storage.write(["execution_contract", Instance.project.id, root.id], { malformed: true })
-        await expect(resolveExecutionAuthority(root.id, root.governingRunId)).rejects.toThrow(/Invalid ExecutionContract/i)
+        await assert.rejects(resolveExecutionAuthority(root.id, root.governingRunId), /Invalid ExecutionContract/i)
       },
     })
   })
@@ -133,14 +138,15 @@ describe("execution contract authority resolution", () => {
       async fn() {
         const child = await Session.create({ title: "Malformed governed child" })
 
-        await expect(Session.bindGoverningRun(child.id, "")).rejects.toThrow()
+        await assert.rejects(Session.bindGoverningRun(child.id, ""))
 
         await Storage.update<Session.Info>(["session", Instance.project.id, child.id], (draft) => {
           draft.governingRunId = ""
         })
-        const persisted = await Session.get(child.id)
+        await assert.rejects(Session.get(child.id), Session.AuthorityReferenceError)
+        const persisted = await Storage.read<Session.Info>(["session", Instance.project.id, child.id])
 
-        await expect(resolveExecutionAuthority(persisted.id, persisted.governingRunId)).rejects.toThrow()
+        await assert.rejects(resolveExecutionAuthority(persisted.id, persisted.governingRunId))
       },
     })
   })

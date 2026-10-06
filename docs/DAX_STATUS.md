@@ -16,6 +16,16 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Session identity/authority integrity — 2026-10-06
+
+Compiled probes reproduced model dispatch from corrupt ownership metadata and
+bypass of a pending root's review through another root's governing pointer. The
+[shared-reader correction](tooling/session-storage-identity-validation.md)
+refuses before model requests or journal changes while preserving genuine derived
+inheritance. All earlier failed validation attempts are retained. Final full
+gates pass 2,377 tests; exact-candidate CI, debug boundary and final path inventory
+remain required. No grant-gap closure or release is claimed.
+
 ## Compiled ask/remember acceptance — 2026-10-06
 
 Actual MCP dispatch now waits for a real route-based operator decision. Remembered

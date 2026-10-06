@@ -195,6 +195,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Session reads reject mismatched storage identity and contradictory governing
+  pointers before execution. A pending or initialized root cannot borrow another
+  root through mutable session metadata; genuine derived inheritance remains.
+
 - Explicit session references in the SDLC verification API now resolve governing
   authority before metadata inspection or command launch. Unsupported reviewed
   verifier bindings and missing references fail closed; unscoped operator CLI

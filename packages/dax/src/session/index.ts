@@ -282,8 +282,52 @@ export namespace Session {
     return path.join(base, [input.time.created, input.slug].join("-") + ".md")
   }
 
+  export class IdentityMismatchError extends Error {
+    readonly code = "session_identity_mismatch"
+    constructor(readonly sessionID: string) {
+      super("Session metadata does not match its storage identity")
+      this.name = "SessionIdentityMismatchError"
+    }
+  }
+
+  export class AuthorityReferenceError extends Error {
+    readonly code: "session_authority_mismatch" | "session_authority_unreadable"
+    constructor(
+      readonly sessionID: string,
+      unreadable = false,
+    ) {
+      super(
+        unreadable
+          ? "Session authority reference could not be validated"
+          : "Session authority reference conflicts with its owned run",
+      )
+      this.name = "SessionAuthorityReferenceError"
+      this.code = unreadable ? "session_authority_unreadable" : "session_authority_mismatch"
+    }
+  }
+
   export const get = fn(Identifier.schema("session"), async (id) => {
-    const read = await Storage.read<Info>(["session", Instance.project.id, id])
+    const projectID = Instance.project.id
+    const read = await Storage.read<Info>(["session", projectID, id])
+    if (!read || read.id !== id || read.projectID !== projectID) throw new IdentityMismatchError(id)
+    if (read.governingRunId !== undefined) {
+      if (!Identifier.schema("session").safeParse(read.governingRunId).success) throw new AuthorityReferenceError(id)
+      if (read.governingRunId !== id) {
+        // Genuine derived sessions have no independent run authority. A mutable
+        // metadata pointer cannot hide this session's own review, even pending,
+        // or move an initialized run under another contract.
+        let independentlyOwned: boolean
+        try {
+          const { getRunAuthority, hasRunEvents } = await import("@/state/events/run-event-store")
+          const { hasGrantReview } = await import("@/execution/grant-review-barrier")
+          independentlyOwned =
+            (await getRunAuthority(id)) !== null || (await hasRunEvents(id)) || (await hasGrantReview(id))
+        } catch {
+          throw new AuthorityReferenceError(id, true)
+        }
+        if (independentlyOwned) throw new AuthorityReferenceError(id)
+      }
+    }
     return read as Info
   })
 

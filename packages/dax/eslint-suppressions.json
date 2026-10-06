@@ -641,11 +641,6 @@
       "count": 1
     }
   },
-  "src/execution/contract-authority-resolution.test.ts": {
-    "@typescript-eslint/await-thenable": {
-      "count": 9
-    }
-  },
   "src/execution/contract-guardian.ts": {
     "@typescript-eslint/no-namespace": {
       "count": 1
