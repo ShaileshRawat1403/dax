@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Compiled ask/remember acceptance — 2026-10-06
+
+Actual MCP dispatch now waits for a real route-based operator decision. Remembered
+approval permits the same tuple's second dispatch; another run asks again and
+can be denied with zero server effects. [The acceptance record](tooling/compiled-grant-ask-validation.md)
+retains the initial invalid fixture payload and final controls. Full gates pass
+2,377 tests. Session metadata integrity and final path inventory remain under
+audit; no grant-gap closure or release is claimed.
+
 ## Scoped SDLC verification correction — 2026-10-06
 
 A compiled probe reproduced command execution when the verification helper was

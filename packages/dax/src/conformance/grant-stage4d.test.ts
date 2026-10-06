@@ -108,6 +108,13 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const asked = JSON.parse((await run("ask", [first, home, "ask"])).trim().split("\n").at(-1)!)
+      expect(asked.controls).toEqual([
+        "compiled-ask-zero-effects-before-route-approval",
+        "compiled-remembered-exact-tuple-second-real-dispatch",
+        "compiled-ask-denial-and-no-cross-run-memory-effects",
+      ])
+      expect(asked.mcpCalls.gamma.tool).toBe(2)
       const sdlc = JSON.parse((await run("sdlc", [first, home, "sdlc"])).trim().split("\n").at(-1)!)
       expect(sdlc.controls).toEqual([
         "compiled-SDLC-explicit-reviewed-reference-no-command-effects",
@@ -142,6 +149,7 @@ describe("stage 4d genuine compiled production authority", () => {
           if (Date.now() >= deadline) throw new Error("Interruption producer never reached durable provider dispatch")
           await Bun.sleep(25)
         }
+        expect(interrupted.exitCode).toBeNull()
         interrupted.kill("SIGKILL")
         expect(await interrupted.exited).not.toBe(0)
       } finally {
@@ -225,6 +233,7 @@ describe("stage 4d genuine compiled production authority", () => {
       console.log(
         JSON.stringify({
           stage4d: matrix,
+          asked,
           sdlc,
           restarted,
           mcp,

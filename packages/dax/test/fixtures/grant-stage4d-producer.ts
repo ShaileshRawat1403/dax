@@ -104,7 +104,9 @@ async function controlledMcp() {
     },
   }
 }
-const mcpFixtures = phase === "mcp" ? { gamma: await controlledMcp(), delta: await controlledMcp() } : undefined
+const mcpFixtures = ["mcp", "ask"].includes(phase)
+  ? { gamma: await controlledMcp(), delta: await controlledMcp() }
+  : undefined
 async function awaitRunCompletion(runId: string) {
   const deadline = Date.now() + 30_000
   while (true) {
@@ -374,6 +376,82 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "ask") {
+        assert.ok(mcpFixtures)
+        process.env.DAX_GRANT_ASK_TIMEOUT_MS = "20000"
+        const app = new Hono().route("/runs", RunRoutes())
+        const make = async () => {
+          const reviewed = await createGrantReviewedRun(
+            { request, availableTools: ["gamma_probe"] },
+            {
+              acknowledgedExternal: ["mcp_source:tool:gamma"],
+              sourceSelections: [{ server: "gamma", family: "tool" }],
+              askSubjects: ["mcp_source:tool:gamma"],
+            },
+          )
+          await approve(reviewed)
+          await publish(reviewed)
+          await GrantReview.activate(reviewed.runId)
+          await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+          return reviewed.runId
+        }
+        const pendingAsk = async (runId: string) => {
+          const deadline = Date.now() + 10_000
+          while (Date.now() < deadline) {
+            const state = (await projectRunStateFromEvents(runId))!
+            const ask = state.approvals.find(
+              (approval) => approval.approvalType === "capability_grant_ask" && approval.status === "pending",
+            )
+            if (ask) return ask
+            await Bun.sleep(10)
+          }
+          throw new Error("Actual tool dispatch did not request operator approval")
+        }
+        const answer = async (runId: string, approvalId: string, decision: "approve" | "deny", remember = false) => {
+          const response = await app.request(`/runs/${runId}/approvals/${approvalId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ decision, actorId: "fixture-operator", ...(remember ? { remember: true } : {}) }),
+          })
+          assert.equal(response.status, 200, await response.text())
+        }
+        const runId = await make()
+        const first = textPrompt(runId, "PRODUCER_MCP_gamma_probe")
+        const approval = await pendingAsk(runId)
+        assert.equal(mcpFixtures.gamma.calls.tool, 0)
+        await answer(runId, approval.approvalId, "approve", true)
+        await first
+        assert.equal(mcpFixtures.gamma.calls.tool, 1)
+        const approvalCount = (await projectRunStateFromEvents(runId))!.approvals.filter(
+          (item) => item.approvalType === "capability_grant_ask",
+        ).length
+        await textPrompt(runId, "PRODUCER_MCP_gamma_probe")
+        assert.equal(mcpFixtures.gamma.calls.tool, 2)
+        const remembered = (await projectRunStateFromEvents(runId))!
+        assert.equal(
+          remembered.approvals.filter((item) => item.approvalType === "capability_grant_ask").length,
+          approvalCount,
+        )
+        assert.ok(remembered.grantReview.remembered[approval.approvalId])
+        assert.deepEqual(reduceRunState(await readRunEvents(runId)), remembered)
+        controls.push("compiled-ask-zero-effects-before-route-approval")
+        controls.push("compiled-remembered-exact-tuple-second-real-dispatch")
+        const deniedRunId = await make()
+        const denied = textPrompt(deniedRunId, "PRODUCER_MCP_gamma_probe")
+        const deniedApproval = await pendingAsk(deniedRunId)
+        assert.equal(mcpFixtures.gamma.calls.tool, 2)
+        await answer(deniedRunId, deniedApproval.approvalId, "deny")
+        await denied
+        assert.equal(mcpFixtures.gamma.calls.tool, 2)
+        const deniedState = (await projectRunStateFromEvents(deniedRunId))!
+        assert.ok(
+          Object.values(deniedState.invocations).some(
+            (invocation) => invocation.toolId === "gamma_probe" && invocation.status === "denied",
+          ),
+        )
+        assert.equal(Object.keys(deniedState.grantReview.remembered).length, 0)
+        assert.deepEqual(reduceRunState(await readRunEvents(deniedRunId)), deniedState)
+        controls.push("compiled-ask-denial-and-no-cross-run-memory-effects")
       } else if (phase === "sdlc") {
         await fs.writeFile(
           path.join(directory, "package.json"),
