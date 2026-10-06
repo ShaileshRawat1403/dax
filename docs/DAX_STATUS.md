@@ -21,7 +21,8 @@ settlement race before correcting it.
 New high/critical advisories stopped hosted validation before tests. The bounded
 [dependency correction](tooling/serialization-proxy-dependency-validation.md)
 resolves proxy-addr 2.0.8 and Seroval 1.6.8 and passes the existing high-threshold
-lock audit. Fresh installation, full gates and exact-commit CI remain required.
+lock audit. A fresh frozen install and all release gates passed, including
+2,377 Bun tests. Exact-commit platform CI is still required before integration.
 
 ## Recovery fixture correction — 2026-10-06
 

@@ -25,9 +25,17 @@ are untouched. No audit suppression, weakened threshold or unrelated upgrade.
 
 Lockfile audit passes at the existing high threshold: no vulnerabilities at or
 above high; 21 below the threshold remain. This does not assert zero advisories.
-Fresh frozen install, integrated gates and exact-commit three-platform CI are
-required before acceptance. Retained linked dependency installations must not
-be mutated; validation will use a new isolated checkout.
+Fresh frozen installation of runtime source `4d160ef` passed in a newly created
+isolated managed worktree, without linked/shared node_modules. Tracked files,
+including the lock and manifests, stayed unchanged. Its fresh high-threshold
+audit passed. Full Bun 1.4.0 release gates passed **2,377 tests, 2 skipped,
+0 failed**, including workspace checks, lint, smoke, Rust and release checks.
+Exact-commit three-platform CI is still required before integration.
+
+Automatic approval review refused replacing preserved symlinks in the earlier
+owned checkout. No links or target installations were removed. The fresh
+checkout is the safer independent install path; this is still solo validation,
+not independent cross-validation.
 
 ## Evidence
 
@@ -38,3 +46,7 @@ Files are under `evidence/`; hashes cover decompressed bytes.
 | `dependency-audit-hosted-red.log.gz` | `373d4c2980a34942239e7d7768f4e9216b4533bcdb35990dc8a94d481305a80d` |
 | `dependency-audit-patched.log.gz` | `cd21c6d33f43c5a20900cdf94592a3fa1e61176e9ccb3da8e4183cd0608f53b2` |
 | `dependency-lock-resolution.log.gz` | `ee5285682ea9d0e352385b370796d664635009ab81b1b415cec9a70ea933b632` |
+
+| `dependency-frozen-install.log.gz` | `6a5ade91cdd26d226710244599a822a6ab7e13d10bde9ed532a4c21d4342c095` |
+| `dependency-fresh-audit.log.gz` | `cd4eb2ce856872e16982e87f63a3c87abaffd54bd77c9796c53d5f2f4e8b138d` |
+| `dependency-fresh-gates.log.gz` | `59bc399673cea2c6edf0b50b2618fecb9a186f18cad722478bdd18ab473e70c0` |
