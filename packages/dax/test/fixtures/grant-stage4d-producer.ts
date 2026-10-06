@@ -57,33 +57,65 @@ const model = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
   async fetch(request) {
-    const input = (await request.json()) as { messages: { role: string; content: unknown }[] }
+    const input = (await request.json()) as {
+      messages: { role: string; content: unknown }[]
+      tools?: { function?: { name?: string } }[]
+    }
     providerCalls++
     console.error(
       "model request",
       providerCalls,
       input.messages.map((m) => m.role),
     )
-    const wantsRead =
-      input.messages.some((m) => m.role === "user" && JSON.stringify(m.content).includes("PRODUCER_READ")) &&
-      !input.messages.some((m) => m.role === "tool")
-    const choice = wantsRead
+    const userIndex = input.messages.findLastIndex((message) => message.role === "user")
+    const latestUser = JSON.stringify(input.messages[userIndex]?.content ?? "")
+    const hasResult = input.messages.slice(userIndex + 1).some((message) => message.role === "tool")
+    const offers = (name: string) => input.tools?.some((tool) => tool.function?.name === name) === true
+    const wantsTask = latestUser.includes("PRODUCER_TASK_") && offers("task") && !hasResult
+    const wantsRead = latestUser.includes("PRODUCER_READ") && offers("read") && !hasResult
+    const taskId = latestUser.match(/PRODUCER_TASK_RESUME (ses_[a-zA-Z0-9_-]+)/)?.[1]
+    const choice = wantsTask
       ? {
           delta: {
             role: "assistant",
             tool_calls: [
               {
                 index: 0,
-                id: `call_read_${providerCalls}`,
+                id: `call_task_${providerCalls}`,
                 type: "function",
-                function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                function: {
+                  name: "task",
+                  arguments: JSON.stringify({
+                    description: "Inspect controlled evidence",
+                    prompt: "PRODUCER_READ: inspect the evidence file.",
+                    subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
+                      ? "deliberately_missing_agent"
+                      : "general",
+                    ...(taskId ? { task_id: taskId } : {}),
+                  }),
+                },
               },
             ],
           },
           finish_reason: null,
         }
-      : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
-    const finish = wantsRead ? "tool_calls" : "stop"
+      : wantsRead
+        ? {
+            delta: {
+              role: "assistant",
+              tool_calls: [
+                {
+                  index: 0,
+                  id: `call_read_${providerCalls}`,
+                  type: "function",
+                  function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                },
+              ],
+            },
+            finish_reason: null,
+          }
+        : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
+    const finish = wantsTask || wantsRead ? "tool_calls" : "stop"
     const data =
       [choice, { delta: {}, finish_reason: finish }]
         .map(
@@ -245,16 +277,121 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "delegation") {
+        const make = async (agent: string) => {
+          const reviewed = await createGrantReviewedRun(
+            { request, availableTools: ["read", "task"] },
+            {
+              writeScope: { roots: ["."], reviewed: true },
+              delegations: [{ capabilityId: "native.tool.task", agents: [agent] }],
+            },
+          )
+          await approve(reviewed)
+          await publish(reviewed)
+          await GrantReview.activate(reviewed.runId)
+          await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+          return reviewed.runId
+        }
+        const runId = await make("general")
+        await textPrompt(runId, "PRODUCER_TASK_FRESH")
+        let state = (await projectRunStateFromEvents(runId))!
+        assert.equal(
+          state.delegationHistory.records.length,
+          1,
+          JSON.stringify(
+            (await Session.messages({ sessionID: runId })).flatMap((message) =>
+              message.parts.filter((part) => part.type === "tool"),
+            ),
+          ),
+        )
+        const delegation = state.delegationHistory.records[0]!
+        assert.equal(delegation.agent, "general")
+        assert.equal(delegation.mode, "created")
+        const child = await Session.get(delegation.childSessionId)
+        assert.equal(child.governingRunId, runId)
+        assert.equal(delegation.parentSessionId, runId)
+        assert.ok(
+          Object.values(state.invocations).some(
+            (invocation) => invocation.toolId === "read" && invocation.status === "completed",
+          ),
+          JSON.stringify({
+            invocations: state.invocations,
+            childMessages: await Session.messages({ sessionID: child.id }),
+          }),
+        )
+        assert.ok(
+          Object.values(state.invocations).some(
+            (invocation) => invocation.toolId === "task" && invocation.status === "completed",
+          ),
+          JSON.stringify(
+            (await Session.messages({ sessionID: runId })).flatMap((message) =>
+              message.parts.filter((part) => part.type === "tool"),
+            ),
+          ),
+        )
+        assert.equal(SessionStatus.get(child.id).type, "idle")
+        controls.push("compiled-TaskTool-fresh-child-real-read")
+        await textPrompt(runId, `PRODUCER_TASK_RESUME ${child.id}`)
+        state = (await projectRunStateFromEvents(runId))!
+        assert.equal(state.delegationHistory.records.length, 2)
+        assert.equal(state.delegationHistory.records[1]!.childSessionId, child.id)
+        assert.equal(state.delegationHistory.records[1]!.mode, "resumed")
+        assert.equal(
+          Object.values(state.invocations).filter(
+            (invocation) => invocation.toolId === "read" && invocation.status === "completed",
+          ).length,
+          2,
+        )
+        assert.deepEqual(reduceRunState(await readRunEvents(runId)), state)
+        controls.push("compiled-TaskTool-same-child-resume")
+        const unknown = await make("deliberately_missing_agent")
+        const sessionsBefore = []
+        for await (const session of Session.list()) sessionsBefore.push(session.id)
+        await textPrompt(unknown, "PRODUCER_TASK_UNKNOWN")
+        const denied = (await projectRunStateFromEvents(unknown))!
+        assert.equal(denied.delegationHistory.records.length, 0)
+        assert.ok(
+          Object.values(denied.invocations).some(
+            (invocation) => invocation.toolId === "task" && invocation.status === "failed",
+          ),
+        )
+        assert.ok(
+          (await Session.messages({ sessionID: unknown })).some((message) =>
+            message.parts.some(
+              (part) =>
+                part.type === "tool" &&
+                part.state.status === "error" &&
+                part.state.error.includes("does not fall back"),
+            ),
+          ),
+        )
+        const sessionsAfter = []
+        for await (const session of Session.list()) sessionsAfter.push(session.id)
+        assert.deepEqual(sessionsAfter.sort(), sessionsBefore.sort())
+        controls.push("compiled-TaskTool-granted-missing-agent-no-fallback-child")
       } else if (phase === "graph") {
         const reviewed = await active()
         await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
         const child = await Session.createNext({ directory, parentID: reviewed.runId, governingRunId: reviewed.runId })
         let effects = 0
         const router = new OperatorRouter()
-        router.register({ type: "controlled", async execute() { effects++; return { success: true, output: {} } } })
+        router.register({
+          type: "controlled",
+          async execute() {
+            effects++
+            return { success: true, output: {} }
+          },
+        })
         const run = async (sessionId: string) => {
           const graph = createTaskGraph("graph_authority")
-          addTask(graph, { id: "effect", name: "Effect", description: "Controlled effect", operator_type: "controlled", dependencies: [], context: {} })
+          addTask(graph, {
+            id: "effect",
+            name: "Effect",
+            description: "Controlled effect",
+            operator_type: "controlled",
+            dependencies: [],
+            context: {},
+          })
           return runGraph(graph, { cwd: directory, sessionId }, router)
         }
         for (const sessionId of [reviewed.runId, child.id]) {

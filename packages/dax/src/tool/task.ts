@@ -40,7 +40,9 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
       z
         .object({
           sessionId: z.string(),
-          model: z.union([z.object({ providerID: z.string(), modelID: z.string() }).strict(), z.literal(false)]).optional(),
+          model: z
+            .union([z.object({ providerID: z.string(), modelID: z.string() }).strict(), z.literal(false)])
+            .optional(),
         })
         .strict(),
     ),
@@ -48,10 +50,10 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
     execute: async (params: z.infer<typeof parameters>, ctx: Tool.Context) => {
       const config = await Config.get()
       const agent = agents.find((a) => a.name === params.subagent_type) || (await Agent.get("general"))
-      const model = (agent && typeof agent !== "string" && agent.model) || (await Agent.get("general").then(a => a!.model))
+      const model =
+        (agent && typeof agent !== "string" && agent.model) || (await Agent.get("general").then((a) => a!.model))
       const agentName = typeof agent === "string" ? agent : agent!.name
 
-      const messageID = Identifier.ascending("message")
       const parentSession = await Session.get(ctx.sessionID)
       const parentAuthority = await resolveExecutionAuthority(parentSession.id, parentSession.governingRunId)
       let session = params.task_id ? await Session.get(params.task_id) : undefined
@@ -62,9 +64,7 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
       if (session && parentAuthority.governingRunId) {
         const childAuthority = await resolveExecutionAuthority(session.id, session.governingRunId)
         if (childAuthority.governingRunId !== parentAuthority.governingRunId) {
-          throw new Error(
-            `Task session ${session.id} is not governed by parent run ${parentAuthority.governingRunId}`,
-          )
+          throw new Error(`Task session ${session.id} is not governed by parent run ${parentAuthority.governingRunId}`)
         }
       }
 
@@ -91,8 +91,13 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
 
       // A reviewed run's delegation grant allowed exactly the requested agent.
       // Never fall back to another one there; refuse before the child exists.
-      if (agentName !== params.subagent_type && (await hasGrantReview(parentSession.governingRunId ?? parentSession.id))) {
-        throw new Error(`Agent ${params.subagent_type} is not available; a reviewed run does not fall back to ${agentName}`)
+      if (
+        agentName !== params.subagent_type &&
+        (await hasGrantReview(parentSession.governingRunId ?? parentSession.id))
+      ) {
+        throw new Error(
+          `Agent ${params.subagent_type} is not available; a reviewed run does not fall back to ${agentName}`,
+        )
       }
       // Creating a derived session is itself an execution effect. Do it only
       // after the parent invocation's combined authority is durable.
@@ -118,6 +123,9 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         }
       }
 
+      // Forking allocates IDs for copied history. The new child turn must sort
+      // after those messages, or the loop selects a copied parent turn instead.
+      const messageID = Identifier.ascending("message")
       const approved = await Permission.getApproved()
       const hasTaskPermission = approved.some((p) => p.permission === "task" && p.action === "allow")
 
@@ -151,7 +159,7 @@ export const TaskTool = Tool.define("task", async (initCtx) => {
         title: params.description,
         metadata: {
           sessionId: session.id,
-          model,
+          ...(model === undefined ? {} : { model }),
         },
         output,
       }

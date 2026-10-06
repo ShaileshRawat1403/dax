@@ -16,6 +16,15 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Compiled delegation correction — 2026-10-06
+
+Real compiled TaskTool acceptance found and corrected child-turn ordering and
+undefined model metadata in the returned JSON result. Fresh dispatch, same-child
+resume and granted-but-unavailable-agent refusal pass; see
+[the validation record](tooling/delegated-producer-validation.md). Full gates
+passed 2,377 tests; final strengthened focused controls passed 13 tests.
+No gap closure or release is added. Actual MCP and interruption acceptance remain.
+
 ## Shared action reference correction — 2026-10-05
 
 Three production context-read controls reproduced fallback from missing/malformed

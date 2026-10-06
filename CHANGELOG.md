@@ -195,6 +195,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TaskTool allocates a new child prompt after forked history so the child selects
+  its actual instruction, and omits unspecified model metadata so completed
+  inherited-model delegations pass JSON result validation.
+
 - TUI startup waits for its worker to install the RPC handler before sending
   initial requests, preventing a blank screen. Worker errors reject callers, and
   missing startup readiness times out instead of waiting indefinitely.

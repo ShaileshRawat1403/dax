@@ -108,8 +108,17 @@ describe("stage 4d genuine compiled production authority", () => {
       expect(matrix.controls).toContain("missing-review-with-journal-authority")
       expect(matrix.controls).toContain("unreadable-review-structure")
       expect(matrix.providerCalls).toBeGreaterThanOrEqual(3)
+      const delegation = JSON.parse((await run("delegation", [first, home, "delegation"])).trim().split("\n").at(-1)!)
+      expect(delegation.controls).toEqual([
+        "compiled-TaskTool-fresh-child-real-read",
+        "compiled-TaskTool-same-child-resume",
+        "compiled-TaskTool-granted-missing-agent-no-fallback-child",
+      ])
       const graph = JSON.parse((await run("graph", [first, home, "graph"])).trim().split("\n").at(-1)!)
-      expect(graph.controls).toEqual(["compiled-graph-root-child-durable-denials", "compiled-graph-no-contract-compatibility"])
+      expect(graph.controls).toEqual([
+        "compiled-graph-root-child-durable-denials",
+        "compiled-graph-no-contract-compatibility",
+      ])
       expect(graph.providerCalls).toBe(0)
       const api = JSON.parse((await run("api", [first, home, "api"])).trim().split("\n").at(-1)!)
       expect(api.controls).toEqual([
