@@ -37,6 +37,22 @@ function deferred() {
   return { promise, resolve }
 }
 
+function observe<T>(promise: Promise<T>) {
+  return promise.then(
+    (value) => ({ status: "fulfilled" as const, value }),
+    (error: unknown) => ({ status: "rejected" as const, error }),
+  )
+}
+
+async function requireEntry(entered: Promise<void>, outcome: ReturnType<typeof observe>) {
+  const phase = await Promise.race([entered.then(() => ({ status: "entered" as const })), outcome])
+  if (phase.status !== "entered") {
+    throw new Error("Prompt settled before entering the controlled server handler", {
+      cause: phase.status === "rejected" ? phase.error : undefined,
+    })
+  }
+}
+
 async function server() {
   const requests: string[] = []
   let onGet: (() => Promise<void>) | undefined
@@ -107,7 +123,10 @@ beforeEach(async () => {
   await fs.mkdir(directory, { recursive: true })
   await Instance.disposeAll()
   Config.global.reset()
-})
+  // Project/storage initialization is fixture setup, not the in-flight identity
+  // scenario. Windows CI has observed >5s here before any prompt dispatch.
+  await Instance.provide({ directory, fn() {} })
+}, 20_000)
 
 afterEach(async () => {
   await Instance.disposeAll()
@@ -143,7 +162,6 @@ async function rejection(promise: Promise<unknown>) {
   if (!rejected) throw new Error("Expected MCP prompt rejection")
   return reason
 }
-
 
 /** A session with a stored contract and a canonical run journal. */
 async function bornSession() {
@@ -271,13 +289,22 @@ describe("MCP prompt identity through real transport and command dispatch", () =
           entered.resolve()
           await release.promise
         }
-        const pending = MCP.getPrompt("alpha", "probe")
-        await entered.promise
-        const disconnect = MCP.disconnect("alpha")
-        release.resolve()
-        await disconnect
-        expect(await rejection(pending)).toMatchObject({ code: "stale" })
-        expect(alpha.requests).toEqual(["probe"])
+        const outcome = observe(MCP.getPrompt("alpha", "probe"))
+        let disconnect: ReturnType<typeof observe> | undefined
+        try {
+          await requireEntry(entered.promise, outcome)
+          disconnect = observe(MCP.disconnect("alpha"))
+          release.resolve()
+          expect((await disconnect).status).toBe("fulfilled")
+          const result = await outcome
+          expect(result.status).toBe("rejected")
+          if (result.status === "rejected") expect(result.error).toMatchObject({ code: "stale" })
+          expect(alpha.requests).toEqual(["probe"])
+        } finally {
+          release.resolve()
+          await outcome
+          await disconnect
+        }
       },
     })
   })
@@ -295,17 +322,23 @@ describe("MCP prompt identity through real transport and command dispatch", () =
           entered.resolve()
           await release.promise
         }
-        const pending = MCP.getPrompt("alpha", "probe")
-        await entered.promise
+        // Observe both outcomes immediately; even an early transport failure
+        // must not become an unhandled rejection while awaiting the server gate.
+        const outcome = observe(MCP.getPrompt("alpha", "probe"))
         const original = client.getPrompt
-        client.getPrompt = (async () => ({ messages: [] })) as typeof client.getPrompt
-        release.resolve()
         try {
-          expect(await rejection(pending)).toMatchObject({ code: "changed" })
+          await requireEntry(entered.promise, outcome)
+          client.getPrompt = (async () => ({ messages: [] })) as typeof client.getPrompt
+          release.resolve()
+          const result = await outcome
+          expect(result.status).toBe("rejected")
+          if (result.status === "rejected") expect(result.error).toMatchObject({ code: "changed" })
+          expect(alpha.requests).toEqual(["probe"])
         } finally {
+          release.resolve()
+          await outcome
           client.getPrompt = original
         }
-        expect(alpha.requests).toEqual(["probe"])
       },
     })
   })
@@ -324,12 +357,23 @@ describe("MCP prompt identity through real transport and command dispatch", () =
           entered.resolve()
           await release.promise
         }
-        const pending = MCP.getPrompt("alpha", "probe")
-        await entered.promise
-        await MCP.disconnect("beta")
-        release.resolve()
-        expect((await pending)?.messages).toHaveLength(1)
-        expect(beta.requests).toEqual([])
+        const outcome = observe(MCP.getPrompt("alpha", "probe"))
+        let disconnect: ReturnType<typeof observe> | undefined
+        try {
+          await requireEntry(entered.promise, outcome)
+          disconnect = observe(MCP.disconnect("beta"))
+          expect((await disconnect).status).toBe("fulfilled")
+          release.resolve()
+          const result = await outcome
+          expect(result.status).toBe("fulfilled")
+          if (result.status === "rejected") throw result.error
+          expect(result.value?.messages).toHaveLength(1)
+          expect(beta.requests).toEqual([])
+        } finally {
+          release.resolve()
+          await outcome
+          await disconnect
+        }
       },
     })
   })

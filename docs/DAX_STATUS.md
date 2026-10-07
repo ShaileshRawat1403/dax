@@ -1,5 +1,14 @@
 # DAX current ownership and release work
 
+## Release fixture reliability follow-up — 2026-10-07
+
+The final receipt's Windows CI exposed a project-setup/test-deadline race before
+MCP prompt dispatch. [The controlled reproduction and bounded fixture correction](tooling/release-2.0.0-operator-env-validation.md)
+retain the failure; its underlying host-delay cause remains unknown. This is
+test-only, with authority checks/deadlines unchanged. Corrected-source full gates
+and platform CI remain required before final release handover. Main, v1.5.0 and
+the installed binary remain unchanged. Earlier source checkpoints are historical.
+
 ## Final corrected release checkpoint — 2026-10-07
 
 Source **2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1** supersedes c064124.

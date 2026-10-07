@@ -1,5 +1,25 @@
 # Final 2.0.0 operator-environment correction
 
+## Subsequent receipt CI failure — preparation reopened
+
+The documentation receipt at 8d77067 exposed a Windows MCP prompt-fixture timeout
+in [CI 37651221741](https://github.com/ShaileshRawat1403/dax/actions/runs/37651221741).
+Production code was unchanged. The trace shows project initialization taking
+about 5.65s before prompt dispatch; the 5s test deadline then caused disposal and
+an unhandled stale rejection. The cause of the underlying Windows setup delay
+is not established. A controlled 5.5s setup delay reproduces the old failure.
+
+The fixture correction primes only project/storage in a bounded 20s setup hook,
+keeps network work and authority checks under their original 5s test deadline,
+and immediately observes/drains held requests and disconnects in finally blocks.
+The same injected delay passes; prompt/resource production controls pass 16 tests
+with 55 assertions. Package typecheck and lint pass using CI's documented 4GiB
+Node heap; the default-heap lint abort is retained too. [Evidence](evidence/release-2.0.0/mcp-fixture/README.md)
+preserves every failure. Full corrected-source gates and all-platform CI must
+pass before the publication handoff is final; no rerun-to-green acceptance.
+
+## Earlier accepted runtime correction
+
 Runtime source: **`2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1`** on
 `release/2.0.0-candidate`. This supersedes the earlier c064124 artifact source.
 Main integration and publication remain pending; v1.5.0 and the installed binary
