@@ -59,7 +59,9 @@ for (const producer of ["model tool", "operator shell", "wrapped command", "plai
       project: process.env.DAX_PROJECT_PROBE, path: Boolean(process.env.PATH || process.env.Path)
     }));`,
     )
-    const command = `"${process.execPath.replaceAll("\\", "/")}" "${probe.replaceAll("\\", "/")}"`
+    // A quoted executable as cmd.exe /c's first token has different stripping
+    // rules. Use the pinned Bun on PATH, while keeping the script path quoted.
+    const command = `bun "${probe.replaceAll("\\", "/")}"`
     // Config overrides the ambient inline sentinel so this is a controlled project.
     process.env.DAX_CONFIG_CONTENT = "{}"
     await fs.writeFile(
@@ -100,12 +102,13 @@ for (const producer of ["model tool", "operator shell", "wrapped command", "plai
             const result = await tool.execute({ command, description: "Probe controlled child environment" }, ctx)
             expect(result.metadata.exit).toBe(0)
           } else if (producer === "operator shell") {
-            await SessionPrompt.shell({
+            const result = await SessionPrompt.shell({
               sessionID: session.id,
               agent: "build",
               model: { providerID: "openai", modelID: "gpt-4o" },
               command,
             })
+            expect(result.parts[0]).toMatchObject({ type: "tool", state: { status: "completed", output: "" } })
           } else {
             let failure: unknown
             try {
