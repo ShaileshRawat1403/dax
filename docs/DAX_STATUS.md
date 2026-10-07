@@ -16,6 +16,16 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## Windows RAO persistence budget — 2026-10-07
+
+The composite persistence/filtering fixture retains its three writes and exact
+assertions, with phase timing and a bounded thirty-second deadline. Its prior
+Windows five-second timeout is preserved; the underlying latency cause remains
+unknown. [Validation and raw evidence](tooling/windows-rao-persistence-validation.md)
+record 2,377 passing tests and complete local release gates. The preceding
+compiled mediation checkpoint also passed all-platform CI. Final candidate CI,
+ledger reconciliation and integration remain pending; no release is claimed.
+
 ## Remaining compiled mediation controls — 2026-10-06
 
 Actual operator/command shell denials, @reference and attachment content reads,

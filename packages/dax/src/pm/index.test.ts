@@ -59,7 +59,13 @@ describe("pm_rev provenance", () => {
     await PM.touch_state({ project_id: id })
     const start = (await PM.get_state({ project_id: id })).pm_rev
 
-    await PM.add_constraint({ project_id: id, rule_type: "never_touch", pattern: ".env", action: "deny", source: "user" })
+    await PM.add_constraint({
+      project_id: id,
+      rule_type: "never_touch",
+      pattern: ".env",
+      action: "deny",
+      source: "user",
+    })
     const afterConstraint = (await PM.get_state({ project_id: id })).pm_rev
 
     await PM.set_preference({ project_id: id, pref_key: "tone", pref_value: "terse" })
@@ -72,7 +78,13 @@ describe("pm_rev provenance", () => {
   test("reading memory does not advance the revision", async () => {
     const PM = await pm()
     const id = project()
-    await PM.add_constraint({ project_id: id, rule_type: "deny_tool", pattern: "shell", action: "deny", source: "user" })
+    await PM.add_constraint({
+      project_id: id,
+      rule_type: "deny_tool",
+      pattern: "shell",
+      action: "deny",
+      source: "user",
+    })
     const before = (await PM.get_state({ project_id: id })).pm_rev
 
     await PM.list_constraints({ project_id: id, limit: 100 })
@@ -100,7 +112,13 @@ describe("pm_rev provenance", () => {
     const id = project()
 
     const early = await PM.append_event({ project_id: id, event_type: "run", payload: { step: "first" } })
-    await PM.add_constraint({ project_id: id, rule_type: "require_approval", pattern: "src/**", action: "ask", source: "user" })
+    await PM.add_constraint({
+      project_id: id,
+      rule_type: "require_approval",
+      pattern: "src/**",
+      action: "ask",
+      source: "user",
+    })
     const late = await PM.append_event({ project_id: id, event_type: "run", payload: { step: "second" } })
 
     expect(late.pm_rev).toBeGreaterThan(early.pm_rev)
@@ -113,8 +131,20 @@ describe("constraints and preferences", () => {
     const mine = project()
     const theirs = project()
 
-    await PM.add_constraint({ project_id: mine, rule_type: "never_touch", pattern: "secrets/**", action: "deny", source: "user" })
-    await PM.add_constraint({ project_id: theirs, rule_type: "deny_tool", pattern: "shell", action: "deny", source: "user" })
+    await PM.add_constraint({
+      project_id: mine,
+      rule_type: "never_touch",
+      pattern: "secrets/**",
+      action: "deny",
+      source: "user",
+    })
+    await PM.add_constraint({
+      project_id: theirs,
+      rule_type: "deny_tool",
+      pattern: "shell",
+      action: "deny",
+      source: "user",
+    })
 
     const rows = await PM.list_constraints({ project_id: mine, limit: 100 })
     expect(rows).toHaveLength(1)
@@ -225,9 +255,20 @@ describe("rao events", () => {
     const id = project()
     const mine = "ses_compose"
 
-    await PM.append_event({ project_id: id, event_type: "run", session_id: mine, payload: {} })
-    await PM.append_event({ project_id: id, event_type: "override", session_id: mine, payload: {} })
-    await PM.append_event({ project_id: id, event_type: "override", session_id: "ses_other", payload: {} })
+    // Each production append may encounter the configured SQLite five-second
+    // busy wait, plus journal-authority filesystem reads. Measure the composite
+    // fixture without reducing its writes or weakening its filtering assertions.
+    for (const [index, input] of [
+      { project_id: id, event_type: "run" as const, session_id: mine, payload: {} },
+      { project_id: id, event_type: "override" as const, session_id: mine, payload: {} },
+      { project_id: id, event_type: "override" as const, session_id: "ses_other", payload: {} },
+    ].entries()) {
+      const started = performance.now()
+      console.info(`RAO compose append ${index} started`)
+      await PM.append_event(input)
+      console.info(`RAO compose append ${index} completed in ${Math.round(performance.now() - started)}ms`)
+    }
+    const queryStarted = performance.now()
 
     const mineOverrides = await PM.list_events({
       project_id: id,
@@ -236,9 +277,10 @@ describe("rao events", () => {
       limit: 100,
     })
 
+    console.info(`RAO compose query completed in ${Math.round(performance.now() - queryStarted)}ms`)
     expect(mineOverrides).toHaveLength(1)
     expect(mineOverrides[0]?.session_id).toBe(mine)
-  })
+  }, 30_000)
 
   test("schema setup is idempotent across repeated opens", async () => {
     // `create table if not exists` runs on every import. A second open of the
