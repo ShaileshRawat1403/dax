@@ -34,21 +34,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider-input commitments. Replay reconstructs boundaries without retaining
   summary text; continuation verifies the stored summary against its commitment.
 
-- Governed runs record what the shared capability lookup concludes about each
-  tool call and operator shell command: the selected executor's identity, the
-  kind of contract that governed it, and the decision the lookup reached. The
-  record is marked record-only and changes nothing about what runs; the
-  enforced decision is still the authorization recorded separately. A grant
-  schema and a v2 contract format are defined and inactive.
-- Operator review of a run's capability grants, reachable from tests only. A
-  proposal derived from the compiled contract and a capture of this instance's
-  catalog grants exact identities, is bound to the implementations it names, and
-  is approved through one digest-bound approval request per revision. Approval
-  publishes the exact reviewed contract; the run stays non-executable until grant
-  enforcement exists, and is never recorded as started: a grant review request
-  enters review from the queue and a decided review returns the run to the queue.
-  Publication requires an approval with a recorded approver. No route or
-  configuration reaches it.
+- Compiled known-image generic runs can explicitly opt into operator-reviewed
+  V2 capability grants through the protected run API. Exact proposal approval,
+  immutable publication, activation and explicit start precede provider/tool
+  dispatch; incomplete, changed or unreadable authority refuses execution.
+  Existing V1 and no-contract behavior remains explicit compatibility, with
+  record-only/no-contract lookup rather than invented reviewed grants.
+- Shared resolution enforces reviewed native tools, batch leaves, delegation,
+  session actions and acknowledged remote MCP against the selected executor's
+  capability and exact binding. Durable denials precede effects; failure to
+  persist a decision also refuses dispatch. Unsupported workflow, worker and
+  verification requirements are refused rather than falling back to another
+  executor. Approval alone does not start a run.
+- Scope-owned run/project journals now share append, locking, envelope validation
+  and replay machinery. Project facts can be proposed, inspected and approved
+  through protected exact-digest operator routes before promotion, supersession
+  or retirement. Fresh sessions consume active approved memory/conventions;
+  retained source-run references are provenance, not duplicate authority.
+  Historical SQL settings require explicit reviewed adoption; old rows are not
+  automatically promoted into project authority.
+- Live session activity is separate from durable run lifecycle status. An idle
+  conversation can leave a run open; a successor is a fresh reviewed authority
+  rather than copied permission from a legacy or completed run.
 - Grant implementation bindings now say how far they are attested. Only a
   compiled DAX binary is exact, bound by the bundle in its running image. A
   remote MCP server is the one external exception, granted only with the
@@ -59,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   itself, and tool dispatch for an activated reviewed run is enforced against
   its published contract and the bindings verified at activation. Activation
   refuses runs that need a worker or required verification before any effect.
-  Reviewed runs remain non-executable until the barrier is lifted.
+  Dispatch additionally requires a known compiled image and explicit start;
+  source and unknown images remain refused.
 - Action paths (attachments, template references, command and operator shell,
   fixed workflow phases, MCP reads) are enforced the same way for an activated
   reviewed run, before any effect. Other runs keep the isolated record-only path.

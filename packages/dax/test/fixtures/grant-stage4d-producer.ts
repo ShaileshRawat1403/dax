@@ -27,6 +27,7 @@ import { GrantReview } from "@/capability/grant-review"
 import { daxExecutable } from "@/capability/implementation-binding"
 import { CapabilityActionDeniedError, recordActionResolution } from "@/capability/record-resolution"
 import { mcpReadDescriptor } from "@/mcp/resource-identity"
+import { ExecutionContractV2 } from "@/execution/execution-contract"
 import { ContractGuardian, readContract } from "@/execution/contract-guardian"
 import { adjudicateNativeCompletionCandidate } from "@/execution/native-completion"
 import { supersededReviewApprovals } from "@/state/events/grant-review-supersession"
@@ -1837,7 +1838,10 @@ try {
         await Storage.write(key, { publication: { state: "complete" }, revisions: null })
         await blocked(unreadable.runId, "unreadable-review-structure")
         const native = await active()
-        assert.equal((await readContract(native.runId))?.schemaVersion, "v2")
+        const publishedContract = ExecutionContractV2.parse(await readContract(native.runId))
+        assert.ok(publishedContract.capabilityGrants.length > 0)
+        assert.equal(publishedContract.runId, native.runId)
+        controls.push("operator-reviewed-published-v2-contract-grants")
         // Guardian writes retain the strict presence barrier, even with a valid published contract.
         const { compileWithRunId } = await import("@/execution/compiler")
         const v1 = compileWithRunId({ request }, native.runId).contract
@@ -1855,6 +1859,16 @@ try {
           state.capabilityResolutions.find((r) => r.capabilityId === "native.tool.read")?.enforcement,
           "enforced",
         )
+        assert.ok(
+          state.capabilityResolutions.some(
+            (item) =>
+              item.capabilityId === "native.tool.read" &&
+              item.basis === "v2_grant" &&
+              item.decision === "allow" &&
+              item.enforcement === "enforced",
+          ),
+        )
+        controls.push("production-native-shared-v2-grant-resolution")
         assert.deepEqual(reduceRunState(await readRunEvents(native.runId)), state)
         assert.ok(
           (await Session.messages({ sessionID: native.runId })).some((m) =>

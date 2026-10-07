@@ -1,85 +1,45 @@
 /**
- * The gaps this codebase has not closed yet, recorded explicitly.
- *
- * The conformance suite is written against the architecture DAX is meant to have,
- * so some of it necessarily fails against the architecture DAX currently has.
- * Left as ordinary failing tests, that turns CI permanently red — and a
- * permanently-red suite is worse than no suite, because within a fortnight red
- * reads as normal and a real regression goes unnoticed.
- *
- * So each open gap is recorded here and its check is wrapped in `expectGap`,
- * which inverts the assertion: the check must still fail. That gives three
- * properties, and the third is the one worth having.
- *
- *   1. CI is green while the gap is open.
- *   2. A *new* failure — an invariant that used to hold and stopped — is an
- *      ordinary red test, because it is not wrapped.
- *   3. A gap that *closes* also turns red, until it is struck from this list.
- *
- * Property 3 exists because an earlier execution meter stayed green while its
- * source-text approximation and obsolete workflow denominator hid what production
- * could actually prove. An unnoticed fix is a measurement problem, not good news.
- *
- * To close a gap: delete its entry here and unwrap its check. The test should
- * then pass on its own terms.
+ * Candidate sprint ledger. Empty records completion of the documented scope,
+ * not absence of every defect or support for every executable binding form.
+ * Published main remains eight open until validated integration. See
+ * docs/tooling/conformance-final-acceptance.md for the scope and producer matrix.
  */
-
-// On feature stacks this is a candidate ledger, not independent acceptance.
-// Accepted main status remains eight open gaps until final review/integration.
-export const KNOWN_GAPS = {
-  "inv5.contract-grants":
-    "Operator-reviewed v2 grants run through the opt-in governed path, while v1 compatibility is retained; reviewed implementation bindings for plugin, local MCP, worker, verification and source-build native families remain incomplete",
-  "inv5.grant-resolution":
-    "Activated reviewed runs use shared fail-closed resolution and durable enforcement records; complete production coverage and usable reviewed bindings across every declared execution family still require acceptance",
-} as const
-
+export const KNOWN_GAPS = Object.freeze({} as const)
 export type GapId = keyof typeof KNOWN_GAPS
 
-/**
- * Assert that a known gap is still open.
- *
- * `check` contains the assertions the invariant would satisfy if it held. While
- * the gap is open those assertions fail, and that is the expected outcome. When
- * they start passing, this throws — the gap has closed and the ledger is stale.
- */
-export function expectGap(id: GapId, check: () => void): void {
-  if (!(id in KNOWN_GAPS)) {
-    throw new Error(`Unknown gap id "${id}". Add it to KNOWN_GAPS with a description of what is missing.`)
+/** Isolated ledgers let the red-on-closure mechanism stay tested when none remain. */
+export function createGapChecks<const G extends Record<string, string>>(ledger: G) {
+  type Id = Extract<keyof G, string>
+  const requireGap = (id: Id) => {
+    if (!Object.hasOwn(ledger, id))
+      throw new Error(`Unknown gap id "${id}". Add it to KNOWN_GAPS with a description of what is missing.`)
   }
-
-  let stillOpen = false
-  try {
-    check()
-  } catch {
-    stillOpen = true
-  }
-
-  if (!stillOpen) {
-    throw new Error(
+  const closed = (id: Id) =>
+    new Error(
       `Gap "${id}" appears to be CLOSED — its conformance check now passes.\n` +
-        `  ${KNOWN_GAPS[id]}\n` +
-        `If that is intended, delete the entry from KNOWN_GAPS and unwrap the check so it ` +
-        `asserts on its own terms. Leaving it wrapped hides the fix from the next reader.`,
+        `${ledger[id]}\nDelete the entry from KNOWN_GAPS and unwrap its check; leaving it wrapped hides the fix.`,
     )
+  function expectGap(id: Id, check: () => void): void {
+    requireGap(id)
+    let stillOpen = false
+    try {
+      check()
+    } catch {
+      stillOpen = true
+    }
+    if (!stillOpen) throw closed(id)
   }
+  async function expectAsyncGap(id: Id, check: () => Promise<void>): Promise<void> {
+    requireGap(id)
+    let stillOpen = false
+    try {
+      await check()
+    } catch {
+      stillOpen = true
+    }
+    if (!stillOpen) throw closed(id)
+  }
+  return Object.freeze({ expectGap, expectAsyncGap })
 }
 
-/** Async counterpart for production-path checks that cross a storage boundary. */
-export async function expectAsyncGap(id: GapId, check: () => Promise<void>): Promise<void> {
-  if (!(id in KNOWN_GAPS)) {
-    throw new Error(`Unknown gap id "${id}". Add it to KNOWN_GAPS with a description of what is missing.`)
-  }
-  let stillOpen = false
-  try {
-    await check()
-  } catch {
-    stillOpen = true
-  }
-  if (!stillOpen) {
-    throw new Error(
-      `Gap "${id}" appears to be CLOSED — its production conformance check now passes.\n` +
-        `${KNOWN_GAPS[id]}\n` +
-        "Delete the ledger entry and run this behavior test normally once independently reviewed.",
-    )
-  }
-}
+export const { expectGap, expectAsyncGap } = createGapChecks(KNOWN_GAPS)

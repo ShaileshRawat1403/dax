@@ -1,5 +1,17 @@
 # Conformance sprint: original nine-gap scope
 
+## Final candidate — 2026-10-07
+
+The candidate has zero remaining original sprint entries within the approved
+scope; accepted published main remains eight pending validation/integration.
+[The final acceptance matrix](../tooling/conformance-final-acceptance.md) maps
+all original rows and thirteen authority paths to actual production controls,
+retains unsupported denial/barrier states and preserves V1 compatibility.
+The following older sections and table retain the original acceptance plan and
+historical main counts. They do not describe current candidate progress.
+Sole-owner checks are not independent review. No release is claimed.
+
+
 ## Current feature candidate — 2026-10-05
 
 The caller-registration descriptor correction proposes closure of capability

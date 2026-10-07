@@ -1,5 +1,16 @@
 # DAX vNext Conformance Suite
 
+## Current candidate — 2026-10-07
+
+The sprint ledger is empty within the documented approved scope, pending final
+candidate validation and integration. Published main still has eight entries.
+See [the final producer matrix](../../../../docs/tooling/conformance-final-acceptance.md).
+Supported compiled reviewed execution and unsupported denial/barriers are distinct;
+legacy V1/no-contract compatibility remains explicit. Empty is not an error-free
+claim. Gap-helper tests retain synthetic isolated ledgers without inventing a
+production gap. Older dated sections below preserve historical measurements.
+
+
 ## Current feature candidate — 2026-10-05
 
 The caller-registration descriptor correction proposes closure of capability

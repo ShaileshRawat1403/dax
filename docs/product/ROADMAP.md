@@ -13,6 +13,19 @@ tags:
 
 # DAX Roadmap
 
+## Current candidate — 2026-10-07
+
+Codex owns implementation and solo validation; no separate Astra reviewer is
+active. The candidate has zero remaining sprint-ledger entries within the
+approved reviewed-execution scope, pending final gates/CI and integration.
+Published main still has eight accepted open entries. See the
+[final producer and gap matrix](../tooling/conformance-final-acceptance.md).
+Unsupported reviewed plugin/local-MCP/worker/verifier executable bindings remain
+future feature work; they stay denied. V1/no-contract compatibility is explicit.
+No new release has been published; v1.5.0 remains the released baseline.
+The earlier plan below preserves historical ownership and counts.
+
+
 Released baseline: **DAX v1.5.0**, released 2026-09-20. The conformance sprint's
 original scope was nine aggregate gaps; eight remain open. Work resumed on
 2026-09-26 after the maintainer's absence, proposal before runtime implementation.

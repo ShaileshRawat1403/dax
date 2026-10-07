@@ -1,5 +1,21 @@
 # DAX current ownership and release work
 
+## Final sprint candidate — 2026-10-07
+
+The candidate ledger now has **zero remaining entries in the approved sprint
+scope**; published main still has eight until final validation/integration.
+[The final acceptance matrix](tooling/conformance-final-acceptance.md) explicitly
+separates supported reviewed execution, unsupported denial/barriers and legacy
+compatibility. It replaces the last two obsolete V1-as-V2 gap probes with actual
+compiled reviewed-producer checks. Unsupported executable binding forms remain
+feature backlog. This is not an error-free guarantee or a release claim.
+Security checkpoint `9ddb2d6` passed Ubuntu/macOS/Windows CI, including Windows
+RAO timing. Final candidate gates/CI and safe merged-branch cleanup remain.
+
+The following dated sections preserve earlier checkpoints and counts; this
+section supersedes their descriptions of current candidate progress.
+
+
 ## Sole ownership — 2026-10-05
 
 The maintainer confirmed that no separate Astra reviewer is active and authorized

@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { expectGap } from "./known-gaps"
 import { join } from "node:path"
 import { nativeCapabilities, createCapabilityRegistry } from "@/capability/registry"
 import { CapabilityDescriptor } from "@/capability/capability-types"
@@ -51,7 +50,6 @@ import { WorkflowRegistry } from "@/workflows/registry"
  * remains a candidate until comprehensive validation and integration; these
  * descriptors establish neither implementation attestation nor authority.
  */
-
 
 function plannedTask(type: string, action?: string): PlannedTask {
   return {
@@ -221,29 +219,30 @@ describe("invariant 5 — contract-defined authority", () => {
       }
       for (const identity of [legacyTool, legacyOperator]) {
         expect(CapabilityDescriptor.safeParse(identity.capability).success).toBe(true)
-        expect(identity.capability).toMatchObject({ riskClass: "high", scopeSupport: "opaque", requiresVerification: true })
+        expect(identity.capability).toMatchObject({
+          riskClass: "high",
+          scopeSupport: "opaque",
+          requiresVerification: true,
+        })
         expect(Object.isFrozen(identity.capability)).toBe(true)
       }
     })
   })
 
-  test("the contract expresses authority as capability grants", () => {
-    // What production writes at run birth is the compiler's contract. Under this
-    // invariant it would carry operator-reviewed grants against named
-    // capabilities. It is a v1 tool filter: the grant format exists and is inactive.
+  test("legacy compilation stays v1 rather than inventing reviewed grants", () => {
+    // V1 remains an explicit compatibility path. Reviewed creation/approval,
+    // published V2 grants and actual enforced dispatch are checked against the
+    // compiled production producer in grant-stage4d.test.ts.
     const { contract } = compileWithRunId({ request: { intent: { input: "Edit one file." } } }, "ses_gap_probe")
     expect(ExecutionContract.safeParse(contract).success).toBe(true)
-    expectGap("inv5.contract-grants", () => {
-      expect(ExecutionContractV2.safeParse(contract).success).toBe(true)
-      expect((contract as { capabilityGrants?: unknown[] }).capabilityGrants?.length).toBeGreaterThan(0)
-    })
+    expect(ExecutionContractV2.safeParse(contract).success).toBe(false)
+    expect((contract as { capabilityGrants?: unknown[] }).capabilityGrants).toBeUndefined()
   })
 
-  test("every execution path resolves authority through the same grant lookup", () => {
-    // The point of the vocabulary. A native edit, a worker patch and a delegated
-    // subagent action should all answer "am I permitted?" by resolving a grant,
-    // and that answer should be the one enforced. The shared lookup exists and is
-    // called on some paths, but it resolves a v1 tool filter and only records.
+  test("legacy shared lookup explicitly reports record-only compatibility", () => {
+    // Intentionally retained compatibility is not evidence that reviewed
+    // production dispatch lacks grant enforcement. The producer matrix covers
+    // actual allows, durable denials, barriers and source-build refusals.
     const { contract } = compileWithRunId({ request: { intent: { input: "Edit one file." } } }, "ses_gap_probe")
     const resolution = resolveCapabilityAuthority({
       path: "native_tool",
@@ -255,9 +254,7 @@ describe("invariant 5 — contract-defined authority", () => {
       worktree: "/repo",
     })
     expect(resolution).toMatchObject({ capabilityId: "native.tool.read", decision: "allow" })
-    expectGap("inv5.grant-resolution", () => {
-      expect(resolution.basis).toBe("v2_grant")
-      expect(resolution.enforcement).toBe("enforced" as never)
-    })
+    expect(resolution.basis).toBe("v1_contract")
+    expect(resolution.enforcement).toBe("record_only")
   })
 })
