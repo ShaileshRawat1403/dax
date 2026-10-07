@@ -1,4 +1,5 @@
 import { expect, spyOn, test } from "bun:test"
+import net from "node:net"
 import { Hono } from "hono"
 import { Server } from "./server"
 import * as Secrets from "../secrets/secrets-loader"
@@ -51,4 +52,23 @@ test("transport allows only configured origins and parses IPv6 host headers", as
   } finally {
     configureTransport({ hostname: "127.0.0.1", ports: [4096] })
   }
+})
+
+test("real network requests without a Host and absolute URL fail closed with 400", async () => {
+  const app = new Hono().use(transportSecurity).get("/", (c) => c.text("ok"))
+  const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.fetch })
+  const response = await new Promise<string>((resolve, reject) => {
+    const socket = net.connect(server.port!, "127.0.0.1", () =>
+      socket.write("GET / HTTP/1.0\r\nConnection: close\r\n\r\n"),
+    )
+    let data = ""
+    socket.setTimeout(5000, () => socket.destroy(new Error("controlled raw request timeout")))
+    socket.on("data", (chunk) => {
+      data += chunk.toString()
+    })
+    socket.on("end", () => resolve(data))
+    socket.on("error", reject)
+  }).finally(() => server.stop(true))
+  expect(response.split("\r\n")[0]).toContain("400")
+  expect(response).not.toContain("200 OK")
 })

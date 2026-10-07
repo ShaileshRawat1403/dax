@@ -13,6 +13,7 @@ import { Filesystem } from "@/util/filesystem"
 import { fileURLToPath } from "url"
 import { Flag } from "@/flag/flag.ts"
 import { Shell } from "@/shell/shell"
+import { shellEnvironment } from "@/shell/environment"
 
 import { BashArity } from "@/governance/arity"
 import { Truncate } from "./truncation"
@@ -104,7 +105,7 @@ export const ShellTool = Tool.define("shell", async () => {
         .string()
         .describe(
           "Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'",
-      ),
+        ),
     }),
     result: ShellResultSchema,
     authorization: "self",
@@ -200,10 +201,7 @@ export const ShellTool = Tool.define("shell", async () => {
       const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
       const options = {
         cwd,
-        env: {
-          ...process.env,
-          ...shellEnv.env,
-        },
+        env: shellEnvironment({ ...process.env, ...shellEnv.env }),
         stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
       }

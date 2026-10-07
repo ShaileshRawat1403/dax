@@ -29,6 +29,11 @@ executable binding form.
    read-only. `--allow-unauthenticated` allows a listener, not privileged actions.
    The default private in-process TUI remains usable. Protect credentials and use
    an encrypted channel for remote access.
+   Commands launched through model shell tools, operator shell, and command snippets
+   omit DAX operator credentials, inline configuration/authenticated server URLs,
+   and Infisical bootstrap variables, even when shell environment hooks supply them.
+   Project/provider environment remains available. Shell profiles or arbitrary
+   same-user code can still retrieve credentials outside this inheritance boundary.
 2. Actor names are audit labels. Shared-secret access is not verified human identity
    and does not isolate arbitrary same-user code that can access those credentials.
 3. Review project facts/settings through their protected candidate endpoint with

@@ -233,6 +233,14 @@ Prepared release candidate; publication and the final release date remain pendin
 
 ### Fixed
 
+- Shell tools, operator commands and command snippets no longer directly inherit
+  DAX operator credentials, authenticated API URLs, inline configuration or
+  Infisical bootstrap variables. Filtering follows environment hooks and handles
+  case variants; it does not provide isolation from arbitrary same-user code.
+- Malformed network requests without a usable Host/absolute URL fail closed with
+  HTTP 400 instead of an internal server error.
+
+
 - Session reads reject mismatched storage identity and contradictory governing
   pointers before execution. A pending or initialized root cannot borrow another
   root through mutable session metadata; genuine derived inheritance remains.

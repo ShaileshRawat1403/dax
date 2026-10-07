@@ -27,7 +27,11 @@ export function isAllowedOrigin(origin: string | undefined): boolean {
 
 /** The in-process TUI RPC client uses this URL and does not send a Host header. */
 export function isInternalRequest(c: Context): boolean {
-  return c.req.header("host") === undefined && new URL(c.req.url).hostname === "dax.internal"
+  try {
+    return c.req.header("host") === undefined && new URL(c.req.url).hostname === "dax.internal"
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -60,7 +64,12 @@ export const transportSecurity: MiddlewareHandler = async (c, next) => {
   const header = c.req.header("host")
   const internal = isInternalRequest(c)
   if (!internal) {
-    const authority = header ?? new URL(c.req.url).host
+    let authority: string
+    try {
+      authority = header ?? new URL(c.req.url).host
+    } catch {
+      return c.json({ error: "Malformed request URL" }, 400)
+    }
     try {
       const url = new URL(`http://${authority}`)
       if (url.username || url.password || url.pathname !== "/" || url.search || url.hash || !hosts.has(url.hostname)) {

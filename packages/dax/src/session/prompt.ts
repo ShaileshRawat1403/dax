@@ -1,3 +1,4 @@
+import { shellEnvironment } from "@/shell/environment"
 import { approvedProjectConventions } from "@/pm/approved-conventions"
 import path from "path"
 import os from "os"
@@ -2685,11 +2686,7 @@ ${
       cwd,
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        ...shellEnv.env,
-        TERM: "dumb",
-      },
+      env: shellEnvironment({ ...process.env, ...shellEnv.env, TERM: "dumb" }),
     })
 
     let output = ""
@@ -2953,6 +2950,7 @@ ${
             requireShell(index, cmd)
             if (wrapped) {
               const proc = Bun.spawn(wrapped, {
+                env: shellEnvironment(process.env),
                 cwd: Instance.directory,
                 stdout: "pipe",
                 stderr: "ignore",
@@ -2960,7 +2958,7 @@ ${
               await proc.exited
               return await new Response(proc.stdout).text()
             }
-            return await $`${{ raw: cmd }}`.quiet().nothrow().text()
+            return await $`${{ raw: cmd }}`.env(shellEnvironment(process.env)).quiet().nothrow().text()
           } catch (error) {
             if (error instanceof CapabilityIdentityError) throw error
             return `Error executing command: ${error instanceof Error ? error.message : String(error)}`
