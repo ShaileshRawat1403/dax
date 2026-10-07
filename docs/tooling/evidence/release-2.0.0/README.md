@@ -22,3 +22,16 @@ SHA-256 covers decompressed bytes. Earlier failures are retained.
 | `patched-frozen-install.gz` | `544061e3fcc284b0f6d66efda5e45e110d1fd0ca25c0374b34aa39e1ba046e17` |
 | `final-gates.gz` | `f3e0b744dd619e331333af8be743a7ed182ba85c025c723a5a930bef936229b0` |
 | `excluded-sdk-runtime.patch.gz` | `fca426e86135f2be31a0895428b5937d9f10a56197a2bc8c85ccecc6d94a976f` |
+
+## Final packaging and tagged-mode evidence
+
+| File | SHA-256 |
+| --- | --- |
+| `all-target-frozen-install.gz` | `bae7701133fbbd0901f2d9547168699002ffc1e216659c5fbc3e0a1a42f2eba1` |
+| `all-target-build.gz` | `a5f86947325d60d1269a601cc65c6c330d7e8eddc9cbda940ee06c4ab45ddb89` |
+| `installer-positive.gz` | `cf3505923783fb578b4e23bcc6e492cc88579a2a7ac64ab84bfa10d1060baead` |
+| `installer-checksum-negative.gz` | `b5e7fe95997e4b5d7cb708ff7856bca23b077c66e200d55ea0011c9e09cec2b3` |
+| `installed-core-proof.gz` | `958f7841b3e5164fe8fe888a2493d2f4f9dc504283aef24003d7380cf34c335e` |
+| `tagged-frozen-install.gz` | `eab9e3606abb29df2bf75cd3a11a8334d08b6cdfb40d2b35c9374db75b72ed9b` |
+| `tagged-release-gates.gz` | `b882d09f72784882c188b051a9d65a831cf54901785415fe330ef503b415eb63` |
+| `authority-bun140-parser.gz` | `25bff2b23deec93dd3305a6a10379629b5de1db30c2e55c1f85e0a26601f6a25` |

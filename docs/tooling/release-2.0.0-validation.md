@@ -73,3 +73,44 @@ issuer field.
 Separate agents must now revalidate the exact corrective commit. All-platform CI,
 packaged assets, actual disposable installer and isolated tagged release-mode
 validation still precede publication; no stable tag or user install changed.
+
+## Final prepared release source
+
+**Release source: `c06412458a12d8208457f339332f2f8195766e9c`.** This later
+receipt branch changes documentation/evidence only; it is not the artifact source.
+The release tag must identify that validated source, not a rebuilt documentation
+commit, unless the maintainer deliberately repeats artifact validation.
+
+- [Exact-source CI 37636584013](https://github.com/ShaileshRawat1403/dax/actions/runs/37636584013)
+  passed Ubuntu, macOS and Windows. Both targeted correction reviews accepted
+  the same SHA, with their limited scopes in [the review receipt](evidence/release-2.0.0/targeted-review.json).
+- Fresh independent validation clone checked out that source on its own feature
+  branch, created a clone-only local v2.0.0 tag, completed a frozen install and
+  ran **DAX_RELEASE=1** full gates: **2,392 passed, 2 skipped, 0 failed**, with
+  all other gates green and clean/tagged release provenance verified. No tag was
+  created or pushed in the primary repository.
+- Frozen all-OS/CPU dependency provisioning preserved source manifests/lockfile.
+  Canonical packaging built eleven archives; every archive hash and main binary
+  member matched the manifest. Build publishing was explicitly disabled.
+- Real installer downloaded from an owned local fixture server to a disposable
+  destination; installed DAX reports 2.0.0. Its installed Rust core emitted a
+  valid proof. Corrupted checksum refusal preserved a prior test binary intact.
+  This does not claim a published GitHub-download install or native execution
+  of every non-host archive.
+- All five Rust sidecars are present in the macOS ARM64 host package. Non-host
+  archives retain the existing host-only sidecar limitation; Rust-dependent
+  commands there require the documented toolchain/sidecar provisioning. No claim
+  of cross-compiled sidecar completeness is made.
+
+[Installer/inventory receipt](evidence/release-2.0.0/installer-receipt.json),
+[manifest](evidence/release-2.0.0/manifest.json) and
+[checksums](evidence/release-2.0.0/SHA256SUMS) identify the prepared bytes.
+Ignored packaged assets are retained at `artifacts/release-2.0.0-c064124/` in this
+owned worktree; preserve them before retiring it. The installed operator binary
+remains SHA-256 `5671509d2f18e6d8316fee9bd7df34be96dd409ed628e9b6f5541d1b4e159fb0`.
+
+Preparation is complete within these limits. Maintainer integration, post-merge
+CI, final publication date and authorized tag/asset publication remain external
+release actions. Main and v1.5.0 are unchanged; unmerged/dirty worktrees are not
+removed in the name of cleanup. [Publication notes](../product/release-2.0.0.md)
+remain the supported-scope and migration boundary.

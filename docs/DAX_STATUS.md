@@ -1,5 +1,19 @@
 # DAX current ownership and release work
 
+## Release-ready source checkpoint — 2026-10-07
+
+Prepared source **c06412458a12d8208457f339332f2f8195766e9c** on
+`release/2.0.0-candidate` passed targeted correction reviews, full local gates,
+all-platform CI, clean clone-only tagged release-mode gates and packaged installer
+acceptance. [Final evidence and retained asset paths](tooling/release-2.0.0-validation.md)
+record 2,392 passing tests, eleven verified archives and checksum refusal without
+overwriting a prior test installation. The original sprint ledger is empty within
+its documented scope, not a claim of defect freedom or unsupported executor support.
+This documentation receipt is not the binary source. Maintainer integration and
+publication remain pending; main, v1.5.0 and the operator's installed binary are
+unchanged. Preserve dirty/unmerged checkouts and the prepared ignored assets.
+
+
 ## Release preparation — 2026-10-07
 
 Version 2.0.0 is prepared on `release/2.0.0-candidate`, not published. Fresh

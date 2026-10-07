@@ -1,0 +1,28 @@
+{
+  "reviewed_sha": "c06412458a12d8208457f339332f2f8195766e9c",
+  "method": "separate-agent adversarial source review; not different-model-family SOP validation",
+  "authority_verdict": "SHIP for bounded corrections",
+  "authority_scope": [
+    "generic protected project approval refusal",
+    "HTTP Basic mutation boundary",
+    "terminal WebSocket guard",
+    "private TUI compatibility",
+    "SDK runtime preservation"
+  ],
+  "authority_probe": "pinned Bun 1.4.0 absolute-form no-Host parser negative control",
+  "oauth_verdict": "PASS for bounded corrections",
+  "oauth_scope": [
+    "add wizard issuer",
+    "debug forwarding",
+    "historical auth status",
+    "MCP-only SDK type",
+    "hono-openapi ESM/CJS immutable metadata patch"
+  ],
+  "oauth_probe": "frozen route metadata and two identical schema exports in both ESM and CJS",
+  "limits": [
+    "not a formal security audit",
+    "shared credentials not verified human identity",
+    "no live IdP authentication",
+    "code reviews do not cover installer/CI beyond separately recorded evidence"
+  ]
+}
