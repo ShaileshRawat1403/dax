@@ -48,7 +48,13 @@ afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
-for (const producer of ["model tool", "operator shell", "wrapped command", "plain command"] as const) {
+for (const producer of [
+  "model tool",
+  "operator shell",
+  "operator shell (quoted executable)",
+  "wrapped command",
+  "plain command",
+] as const) {
   test(`${producer} does not inherit operator credentials`, async () => {
     const marker = path.join(root, "child-env.json")
     const probe = path.join(root, "probe with spaces.cjs")
@@ -61,7 +67,7 @@ for (const producer of ["model tool", "operator shell", "wrapped command", "plai
     )
     // A quoted executable as cmd.exe /c's first token has different stripping
     // rules. Use the pinned Bun on PATH, while keeping the script path quoted.
-    const command = `bun "${probe.replaceAll("\\", "/")}"`
+    const command = `${producer === "operator shell (quoted executable)" ? `"${process.execPath.replaceAll("\\", "/")}"` : "bun"} "${probe.replaceAll("\\", "/")}"`
     // Config overrides the ambient inline sentinel so this is a controlled project.
     process.env.DAX_CONFIG_CONTENT = "{}"
     await fs.writeFile(
@@ -101,7 +107,7 @@ for (const producer of ["model tool", "operator shell", "wrapped command", "plai
             }
             const result = await tool.execute({ command, description: "Probe controlled child environment" }, ctx)
             expect(result.metadata.exit).toBe(0)
-          } else if (producer === "operator shell") {
+          } else if (producer.startsWith("operator shell")) {
             const result = await SessionPrompt.shell({
               sessionID: session.id,
               agent: "build",
