@@ -90,8 +90,8 @@ commit, unless the maintainer deliberately repeats artifact validation.
   all other gates green and clean/tagged release provenance verified. No tag was
   created or pushed in the primary repository.
 - Frozen all-OS/CPU dependency provisioning preserved source manifests/lockfile.
-  Canonical packaging built eleven archives; every archive hash and main binary
-  member matched the manifest. Build publishing was explicitly disabled.
+  Canonical packaging built eleven archives; archive hashes matched the manifest and main
+  members matched their corresponding build outputs. Build publishing was explicitly disabled.
 - Real installer downloaded from an owned local fixture server to a disposable
   destination; installed DAX reports 2.0.0. Its installed Rust core emitted a
   valid proof. Corrupted checksum refusal preserved a prior test binary intact.
@@ -114,3 +114,10 @@ CI, final publication date and authorized tag/asset publication remain external
 release actions. Main and v1.5.0 are unchanged; unmerged/dirty worktrees are not
 removed in the name of cleanup. [Publication notes](../product/release-2.0.0.md)
 remain the supported-scope and migration boundary.
+
+The [retained tagged provenance](evidence/release-2.0.0/tagged-release-provenance.json)
+pins release_mode, source commit and clone-only tag without relying on temporary
+folders. The separate-agent evidence review at `48ac609` verified all 26 compressed
+log digests, archive/build output consistency, the installer binary hash and exact
+all-platform source CI. Its low-severity retention/wording corrections are included
+here; no runtime code or release source changed.
