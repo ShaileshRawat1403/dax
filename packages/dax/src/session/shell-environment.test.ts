@@ -107,9 +107,19 @@ for (const producer of ["model tool", "operator shell", "wrapped command", "plai
               command,
             })
           } else {
-            await expect(
-              SessionPrompt.command({ sessionID: session.id, command: "probe", arguments: "", model: "openai/gpt-4o" }),
-            ).rejects.toThrow("controlled model boundary")
+            let failure: unknown
+            try {
+              await SessionPrompt.command({
+                sessionID: session.id,
+                command: "probe",
+                arguments: "",
+                model: "openai/gpt-4o",
+              })
+            } catch (error) {
+              failure = error
+            }
+            expect(failure).toBeInstanceOf(Error)
+            expect(failure).toHaveProperty("message", "controlled model boundary")
           }
           expect(JSON.parse(await fs.readFile(marker, "utf8"))).toEqual({
             protected: [],
