@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "bun run --cwd packages/dax dev",
     "dax:local": "./script/dax-local.sh",
-    "typecheck": "bun turbo typecheck",
+    "typecheck": "bun turbo typecheck --concurrency=1 --log-order=stream --output-logs=full",
     "typecheck:dax": "bun run --cwd packages/dax typecheck",
     "lint": "bun run --cwd packages/dax lint && bun run lint:workspaces",
     "lint:workspaces": "bun packages/dax/node_modules/eslint/bin/eslint.js --config packages/dax/eslint.config.js packages/plugin/src packages/util/src packages/script/src packages/sdk/js/src --suppressions-location eslint-workspaces-suppressions.json",

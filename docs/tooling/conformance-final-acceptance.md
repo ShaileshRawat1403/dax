@@ -131,3 +131,9 @@ Hashes cover decompressed bytes under `evidence/`.
 | `final-closeout-link-red.log.gz` | `21a9c0fe34eee0f2329f1bae5f9cb65e89e2ad6db6477516b02699ae77e9db62` |
 | `final-closeout-gates.log.gz` | `f8c73b6ef49914b296e96c39882fd819b4a24a5ed3790bb30f3bbf4632e3c8ab` |
 | `final-closeout-unsupported-producer.log.gz` | `86408369c9f72061f2ecdc8e095116c4297405fe9304b5e7a6c26f19c5395de1` |
+
+The candidate's first hosted run stopped at an unexplained Windows typecheck
+launcher exit, before tests. [Cold typecheck and diagnostic correction](checkout-local-typechecks-validation.md)
+retains that failure, the independent ambient-type finding and final cold/full
+checks; it does not waive platform acceptance. Host preview startup is additionally
+verified there. Exact-SHA CI must pass at the successor correction before integration.

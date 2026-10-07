@@ -24,6 +24,7 @@ env:
 jobs:
   validate:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -72,6 +73,9 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Typecheck
+        # Keep every workspace check, but bound simultaneous compiler memory
+        # and stream task output so a failed Windows launcher cannot lose a
+        # buffered package diagnostic. This does not relax exit-code handling.
         run: bun run typecheck
 
       - name: Lint

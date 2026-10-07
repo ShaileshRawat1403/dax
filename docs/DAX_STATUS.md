@@ -1,5 +1,16 @@
 # DAX current ownership and release work
 
+## Cold typechecks and platform diagnostics — 2026-10-07
+
+The final candidate's Windows typecheck launcher exited without a compiler
+diagnostic; that cause remains unknown. Cold checks independently reproduced
+ambient types leaking from outside the checkout. [The bounded correction](tooling/checkout-local-typechecks-validation.md)
+confines all workspaces to local type dependencies, streams and serializes the
+shared typecheck gate, and lets all CI platforms finish independently. Cold checks
+pass 5/5 without caches; full gates pass 2,383 tests. The actual macOS preview
+build, CLI version/help and owned TUI startup/exit also pass. Exact-candidate CI
+and integration remain pending. No installed binary or release changed.
+
 ## Final sprint candidate — 2026-10-07
 
 The candidate ledger now has **zero remaining entries in the approved sprint
