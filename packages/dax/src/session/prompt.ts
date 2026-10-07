@@ -2604,7 +2604,9 @@ ${
       },
       // Windows cmd
       cmd: {
-        args: ["/c", input.command],
+        // Match Node's CMD shell protocol: /s removes this outer quote pair,
+        // leaving the submitted command's own quotes intact.
+        args: ["/d", "/s", "/c", `"${input.command}"`],
       },
       // Windows PowerShell
       powershell: {
@@ -2684,6 +2686,7 @@ ${
     })
     const proc = spawn(shell, args, {
       cwd,
+      windowsVerbatimArguments: process.platform === "win32" && shellName === "cmd",
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
       env: shellEnvironment({ ...process.env, ...shellEnv.env, TERM: "dumb" }),

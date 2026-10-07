@@ -51,7 +51,7 @@ afterEach(async () => {
 for (const producer of ["model tool", "operator shell", "wrapped command", "plain command"] as const) {
   test(`${producer} does not inherit operator credentials`, async () => {
     const marker = path.join(root, "child-env.json")
-    const probe = path.join(root, "probe.cjs")
+    const probe = path.join(root, "probe with spaces.cjs")
     await fs.writeFile(
       probe,
       `const fs = require('node:fs'); fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({
