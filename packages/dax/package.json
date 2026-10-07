@@ -76,7 +76,7 @@
     "@dax-ai/util": "workspace:*",
     "@hono/standard-validator": "catalog:",
     "@infisical/sdk": "^5.0.2",
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@octokit/graphql": "9.0.2",
     "@octokit/rest": "catalog:",
     "@openrouter/ai-sdk-provider": "1.5.4",

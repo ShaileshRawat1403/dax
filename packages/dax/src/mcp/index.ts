@@ -469,6 +469,7 @@ export namespace MCP {
           {
             clientId: oauthConfig?.clientId,
             clientSecret: oauthConfig?.clientSecret,
+            expectedIssuer: oauthConfig?.expectedIssuer,
             scope: oauthConfig?.scope,
           },
           {
@@ -1085,6 +1086,7 @@ export namespace MCP {
       {
         clientId: oauthConfig?.clientId,
         clientSecret: oauthConfig?.clientSecret,
+        expectedIssuer: oauthConfig?.expectedIssuer,
         scope: oauthConfig?.scope,
       },
       {

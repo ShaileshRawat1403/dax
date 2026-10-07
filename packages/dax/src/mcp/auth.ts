@@ -5,6 +5,9 @@ import { Global } from "../global"
 export namespace McpAuth {
   export const Tokens = z.object({
     accessToken: z.string(),
+    issuer: z.string().url().optional(),
+    tokenType: z.string().optional(),
+    idToken: z.string().optional(),
     refreshToken: z.string().optional(),
     expiresAt: z.number().optional(),
     scope: z.string().optional(),
@@ -13,6 +16,7 @@ export namespace McpAuth {
 
   export const ClientInfo = z.object({
     clientId: z.string(),
+    issuer: z.string().url().optional(),
     clientSecret: z.string().optional(),
     clientIdIssuedAt: z.number().optional(),
     clientSecretExpiresAt: z.number().optional(),

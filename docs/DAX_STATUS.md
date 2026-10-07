@@ -16,6 +16,17 @@ Its first CI run reproduced the older Windows cleanup/recovery timeouts. The
 those failures, adds native Windows descendant checks and proves a cleanup
 settlement race before correcting it.
 
+## MCP OAuth issuer binding — 2026-10-07
+
+A newly published SDK audit finding stopped the RAO checkpoint's CI before tests.
+The [security correction](tooling/mcp-oauth-issuer-validation.md) upgrades the SDK,
+preserves authorization-server issuer bindings and refuses historical unstamped
+credentials. Configured clients require an explicit `oauth.expectedIssuer`; old
+credential files remain intact but require reauthentication. Real SDK negative
+controls detect the old provider. Final local gates pass 2,382 tests; the unchanged
+high audit threshold passes. Exact-candidate platform CI and integration remain
+required; published v1.5.0 and its installed binary are unchanged.
+
 ## Windows RAO persistence budget — 2026-10-07
 
 The composite persistence/filtering fixture retains its three writes and exact

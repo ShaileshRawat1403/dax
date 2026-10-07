@@ -104,6 +104,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Upgrade the MCP SDK to the issuer-binding security fix and preserve issuer
+  metadata in DAX's OAuth credential storage. Issuerless historical credentials
+  are preserved but not reused; remote OAuth requires a new sign-in. Pre-registered
+  clients must configure `oauth.expectedIssuer` with their authorization server's
+  URL. DAX never infers that trust from the MCP server's discovery response.
+
 - **Workspace trust now covers a repository's tool files.** `.dax/tool` and
   `.dax/tools` files were imported the first time tools were discovered, in a
   worktree the operator had never trusted, so a cloned repository could run code
