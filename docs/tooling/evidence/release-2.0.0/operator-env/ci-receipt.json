@@ -1,0 +1,37 @@
+{
+  "source": "2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1",
+  "run_id": 37649534987,
+  "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37649534987",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "validate (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (windows-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (macos-latest)",
+      "conclusion": "success"
+    }
+  ],
+  "previous_unsuccessful_runs": [
+    {
+      "id": 37645734099,
+      "source": "f25bf09",
+      "reason": "new fixture lint error"
+    },
+    {
+      "id": 37646101682,
+      "source": "45d0484",
+      "reason": "Windows operator probe did not execute"
+    },
+    {
+      "id": 37647542023,
+      "source": "02cc3ab",
+      "reason": "Windows operator quoted filename passed literally"
+    }
+  ]
+}

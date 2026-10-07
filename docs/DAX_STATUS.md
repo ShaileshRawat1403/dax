@@ -1,5 +1,17 @@
 # DAX current ownership and release work
 
+## Final corrected release checkpoint — 2026-10-07
+
+Source **2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1** supersedes c064124.
+Shell producers omit the documented operator environment keys after hooks; malformed
+network URLs fail closed with 400. [Final validation and prepared artifacts](tooling/release-2.0.0-operator-env-validation.md)
+record bounded separate-agent acceptance, 2,399 passing fresh-clone release-mode
+tests and rebuilt installer/checksum controls. [Exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37649534987)
+passed Ubuntu, macOS and Windows, including the actual CMD quote controls. The candidate sprint ledger is empty within its documented
+scope; main still has eight until integration. This is not an error-free or OS
+isolation claim. v1.5.0 and the installed binary remain unchanged. Main integration,
+post-merge CI and publication remain pending. Earlier checkpoints below are historical.
+
 ## Release-ready source checkpoint — 2026-10-07
 
 Prepared source **c06412458a12d8208457f339332f2f8195766e9c** on

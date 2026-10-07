@@ -1,0 +1,19 @@
+{
+  "source": "2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1",
+  "reviewer": "release_authority_review",
+  "verdict": "SHIP for bounded corrections",
+  "scope": [
+    "shell environment filtering and producer integration",
+    "malformed network URL handling",
+    "fixture-only followups",
+    "Windows CMD verbatim/outer-quote protocol",
+    "quoted executable and spaced script production controls"
+  ],
+  "independent_probe": "27 casing variants removed; provider/project environment preserved; frozen parent unchanged",
+  "probe_sha256": "66cfc32ac4ff13c5c9554875e9904eac85e4ab32c129a2a2a023e6df087828e3",
+  "limitations": [
+    "Separate-agent review, not different-model-family validation",
+    "No whole-stack audit, full suite or Windows execution by reviewer"
+  ],
+  "protocol_source": "https://raw.githubusercontent.com/oven-sh/bun/34cbb9a40/src/js/node/child_process.ts"
+}

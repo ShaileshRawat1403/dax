@@ -1,0 +1,8 @@
+{
+  "eventCount": 9,
+  "eventSequenceHash": "sha256:17d5cced5fdfedca505ad618c3a4db75b13a8a15647e03154444d320e5d6dc8e",
+  "finalStatus": "completed",
+  "result": "pass",
+  "schemaVersion": "dax.core.proof.v1",
+  "stateHash": "sha256:a4e1469c000272daa52240bfb0bec9f3527706f0a516ad162a4ff902f8799748"
+}

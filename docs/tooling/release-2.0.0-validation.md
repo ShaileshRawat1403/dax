@@ -1,5 +1,10 @@
 # DAX 2.0.0 preparation and validation
 
+Latest corrected source: **2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1**.
+[Final correction, gates and rebuilt artifacts](release-2.0.0-operator-env-validation.md)
+supersede the earlier prepared-source sections below. Main integration and
+publication remain pending.
+
 Prepared release branch: `release/2.0.0-candidate`, based on
 `2463ef55ac7a9ed0712c1460c3c0a78af752317c`. Version 2.0.0 is a candidate;
 no tag publication, installed-binary replacement or main integration is claimed.
@@ -74,12 +79,12 @@ Separate agents must now revalidate the exact corrective commit. All-platform CI
 packaged assets, actual disposable installer and isolated tagged release-mode
 validation still precede publication; no stable tag or user install changed.
 
-## Final prepared release source
+## Earlier prepared release source — superseded
 
 **Release source: `c06412458a12d8208457f339332f2f8195766e9c`.** This later
 receipt branch changes documentation/evidence only; it is not the artifact source.
-The release tag must identify that validated source, not a rebuilt documentation
-commit, unless the maintainer deliberately repeats artifact validation.
+That checkpoint is historical. The operator-environment correction below supersedes
+its source and bytes; do not publish c064124 as the final corrected release.
 
 - [Exact-source CI 37636584013](https://github.com/ShaileshRawat1403/dax/actions/runs/37636584013)
   passed Ubuntu, macOS and Windows. Both targeted correction reviews accepted
