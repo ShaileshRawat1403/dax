@@ -1506,6 +1506,23 @@ export namespace RunGateway {
         throw new Storage.NotFoundError({ message: `Approval not found: ${approvalId}` })
       }
 
+      // Project fact/settings decisions require their dedicated exact-digest
+      // review producer. A generic approve or deny must not consume that gate.
+      if (
+        source.events.some(
+          (event) =>
+            event.type === "approval_requested" &&
+            typeof event.payload === "object" &&
+            event.payload !== null &&
+            "approvalId" in event.payload &&
+            "projectFactSubject" in event.payload &&
+            event.payload.approvalId === approvalId &&
+            event.payload.projectFactSubject !== undefined,
+        )
+      ) {
+        throw new ReviewedRunError("project_fact_review_endpoint_required", 409, runId)
+      }
+
       const decision =
         canonicalApproval.status === "pending"
           ? input.decision

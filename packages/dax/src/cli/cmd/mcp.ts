@@ -6,7 +6,7 @@ import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { MCP } from "../../mcp"
 import { McpAuth } from "../../mcp/auth"
-import { McpOAuthProvider } from "../../mcp/oauth-provider"
+import { McpOAuthProvider, validIssuer } from "../../mcp/oauth-provider"
 import { Config } from "../../config/config"
 import { Instance } from "../../project/instance"
 import { Installation } from "../../installation"
@@ -129,7 +129,12 @@ function printJson(value: unknown) {
   process.stdout.write(JSON.stringify(value, null, 2) + "\n")
 }
 
-async function withMcpInspect<T>(args: McpInspectArgs, title: string, fn: () => Promise<T>, render: (value: T) => void) {
+async function withMcpInspect<T>(
+  args: McpInspectArgs,
+  title: string,
+  fn: () => Promise<T>,
+  render: (value: T) => void,
+) {
   return Instance.provide({
     directory: process.cwd(),
     async fn() {
@@ -163,16 +168,21 @@ export const McpToolsCommand = cmd({
         default: false,
       }),
   async handler(args) {
-    await withMcpInspect(args, "MCP tools", () => MCP.toolCatalog(args.name), (items) => {
-      if (items.length === 0) {
-        prompts.log.warn(`No tools available for ${args.name}`)
-        return
-      }
-      for (const item of items) {
-        prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
-      }
-      prompts.log.message(`${items.length} tool(s)`)
-    })
+    await withMcpInspect(
+      args,
+      "MCP tools",
+      () => MCP.toolCatalog(args.name),
+      (items) => {
+        if (items.length === 0) {
+          prompts.log.warn(`No tools available for ${args.name}`)
+          return
+        }
+        for (const item of items) {
+          prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+        }
+        prompts.log.message(`${items.length} tool(s)`)
+      },
+    )
   },
 })
 
@@ -192,30 +202,37 @@ export const McpInspectCommand = cmd({
         default: false,
       }),
   async handler(args) {
-    const result = await withMcpInspect(args, "MCP inspect", () => MCP.inspect(args.name), (result) => {
-      prompts.log.info(`${result.name}: ${result.status.status}`)
-      if (result.status.status === "failed") {
-        prompts.log.error(result.status.error)
-      }
-      if (result.status.status === "needs_client_registration") {
-        prompts.log.error(result.status.error)
-      }
-      if (result.status.status === "needs_auth") {
-        prompts.log.warn(`Run: dax mcp auth ${result.name}`)
-      }
-      prompts.log.message(`tools: ${result.tools.length}`)
-      for (const item of result.tools.slice(0, 8)) {
-        prompts.log.info(`  tool: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
-      }
-      prompts.log.message(`resources: ${result.resources.length}`)
-      for (const item of result.resources.slice(0, 5)) {
-        prompts.log.info(`  resource: ${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
-      }
-      prompts.log.message(`prompts: ${result.prompts.length}`)
-      for (const item of result.prompts.slice(0, 5)) {
-        prompts.log.info(`  prompt: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
-      }
-    })
+    const result = await withMcpInspect(
+      args,
+      "MCP inspect",
+      () => MCP.inspect(args.name),
+      (result) => {
+        prompts.log.info(`${result.name}: ${result.status.status}`)
+        if (result.status.status === "failed") {
+          prompts.log.error(result.status.error)
+        }
+        if (result.status.status === "needs_client_registration") {
+          prompts.log.error(result.status.error)
+        }
+        if (result.status.status === "needs_auth") {
+          prompts.log.warn(`Run: dax mcp auth ${result.name}`)
+        }
+        prompts.log.message(`tools: ${result.tools.length}`)
+        for (const item of result.tools.slice(0, 8)) {
+          prompts.log.info(`  tool: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+        }
+        prompts.log.message(`resources: ${result.resources.length}`)
+        for (const item of result.resources.slice(0, 5)) {
+          prompts.log.info(`  resource: ${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
+        }
+        prompts.log.message(`prompts: ${result.prompts.length}`)
+        for (const item of result.prompts.slice(0, 5)) {
+          prompts.log.info(
+            `  prompt: ${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`,
+          )
+        }
+      },
+    )
     process.exitCode = result.status.status === "connected" ? 0 : 1
   },
 })
@@ -236,16 +253,21 @@ export const McpResourcesCommand = cmd({
         default: false,
       }),
   async handler(args) {
-    await withMcpInspect(args, "MCP resources", () => MCP.resourceCatalog(args.name), (items) => {
-      if (items.length === 0) {
-        prompts.log.warn(`No resources available for ${args.name}`)
-        return
-      }
-      for (const item of items) {
-        prompts.log.info(`${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
-      }
-      prompts.log.message(`${items.length} resource(s)`)
-    })
+    await withMcpInspect(
+      args,
+      "MCP resources",
+      () => MCP.resourceCatalog(args.name),
+      (items) => {
+        if (items.length === 0) {
+          prompts.log.warn(`No resources available for ${args.name}`)
+          return
+        }
+        for (const item of items) {
+          prompts.log.info(`${item.name} ${UI.Style.TEXT_DIM}${item.uri}`)
+        }
+        prompts.log.message(`${items.length} resource(s)`)
+      },
+    )
   },
 })
 
@@ -265,16 +287,21 @@ export const McpPromptsCommand = cmd({
         default: false,
       }),
   async handler(args) {
-    await withMcpInspect(args, "MCP prompts", () => MCP.promptCatalog(args.name), (items) => {
-      if (items.length === 0) {
-        prompts.log.warn(`No prompts available for ${args.name}`)
-        return
-      }
-      for (const item of items) {
-        prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
-      }
-      prompts.log.message(`${items.length} prompt(s)`)
-    })
+    await withMcpInspect(
+      args,
+      "MCP prompts",
+      () => MCP.promptCatalog(args.name),
+      (items) => {
+        if (items.length === 0) {
+          prompts.log.warn(`No prompts available for ${args.name}`)
+          return
+        }
+        for (const item of items) {
+          prompts.log.info(`${item.name}${item.description ? ` ${UI.Style.TEXT_DIM}${item.description}` : ""}`)
+        }
+        prompts.log.message(`${items.length} prompt(s)`)
+      },
+    )
   },
 })
 
@@ -294,22 +321,27 @@ export const McpPingCommand = cmd({
         default: false,
       }),
   async handler(args) {
-    const result = await withMcpInspect(args, "MCP ping", () => MCP.ping(args.name), (result) => {
-      prompts.log.info(`${result.name}: ${result.status.status}`)
-      if (result.detail) {
-        prompts.log.message(`  ${result.detail}`)
-      }
-      prompts.log.message(`  latency: ${result.latency_ms}ms`)
-      prompts.log.message(`  tools: ${result.tools}`)
-      prompts.log.message(`  prompts: ${result.prompts}`)
-      prompts.log.message(`  resources: ${result.resources}`)
-      if (result.status.status === "failed") {
-        prompts.log.error(`  ${result.status.error}`)
-      }
-      if (result.status.status === "needs_client_registration") {
-        prompts.log.error(`  ${result.status.error}`)
-      }
-    })
+    const result = await withMcpInspect(
+      args,
+      "MCP ping",
+      () => MCP.ping(args.name),
+      (result) => {
+        prompts.log.info(`${result.name}: ${result.status.status}`)
+        if (result.detail) {
+          prompts.log.message(`  ${result.detail}`)
+        }
+        prompts.log.message(`  latency: ${result.latency_ms}ms`)
+        prompts.log.message(`  tools: ${result.tools}`)
+        prompts.log.message(`  prompts: ${result.prompts}`)
+        prompts.log.message(`  resources: ${result.resources}`)
+        if (result.status.status === "failed") {
+          prompts.log.error(`  ${result.status.error}`)
+        }
+        if (result.status.status === "needs_client_registration") {
+          prompts.log.error(`  ${result.status.error}`)
+        }
+      },
+    )
     process.exitCode = result.status.status === "connected" ? 0 : 1
   },
 })
@@ -434,6 +466,7 @@ export const McpAuthCommand = cmd({
       "url": "${serverConfig.url}",
       "oauth": {
         "clientId": "your-client-id",
+        "expectedIssuer": "https://your-trusted-authorization-server/",
         "clientSecret": "your-client-secret"
       }
     }
@@ -728,11 +761,20 @@ export const McpAddCommand = cmd({
                 clientSecret = secret
               }
 
+              const expectedIssuer = await prompts.text({
+                message: "Enter the trusted authorization server URL for this client",
+                placeholder: "https://auth.example.com/",
+                validate: (value) =>
+                  validIssuer(value) ? undefined : "Enter an HTTP(S) issuer URL without credentials, query or fragment",
+              })
+              if (prompts.isCancel(expectedIssuer)) throw new UI.CancelledError()
+
               mcpConfig = {
                 type: "remote",
                 url,
                 oauth: {
                   clientId,
+                  expectedIssuer,
                   ...(clientSecret && { clientSecret }),
                 },
               }
@@ -868,6 +910,7 @@ export const McpDebugCommand = cmd({
               {
                 clientId: oauthConfig?.clientId,
                 clientSecret: oauthConfig?.clientSecret,
+                expectedIssuer: oauthConfig?.expectedIssuer,
                 scope: oauthConfig?.scope,
               },
               {

@@ -412,7 +412,7 @@ try {
       if (phase === "api-start-child") {
         const { runId, expected } = JSON.parse(process.argv[4]!)
         const app = new Hono().route("/runs", RunRoutes())
-        const response = await app.request(`/runs/${runId}/grant-review/start`, {
+        const response = await app.request(`http://dax.internal/runs/${runId}/grant-review/start`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ expected }),
@@ -767,7 +767,7 @@ try {
           throw new Error("Actual tool dispatch did not request operator approval")
         }
         const answer = async (runId: string, approvalId: string, decision: "approve" | "deny", remember = false) => {
-          const response = await app.request(`/runs/${runId}/approvals/${approvalId}`, {
+          const response = await app.request(`http://dax.internal/runs/${runId}/approvals/${approvalId}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ decision, actorId: "fixture-operator", ...(remember ? { remember: true } : {}) }),
@@ -1159,7 +1159,7 @@ try {
         const app = new Hono().route("/runs", RunRoutes())
         const api = async (url: string, body?: unknown, status = 200) => {
           const response = await app.request(
-            `/runs${url === "/" ? "" : url}`,
+            `http://dax.internal/runs${url === "/" ? "" : url}`,
             body === undefined
               ? {}
               : {
@@ -1306,7 +1306,7 @@ try {
         controls.push("api-activated-queued-all-session-entries-no-effects")
         const responses = await Promise.all(
           [1, 2].map(() =>
-            app.request(`/runs/${runId}/grant-review/start`, {
+            app.request(`http://dax.internal/runs/${runId}/grant-review/start`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ expected: review.expected }),
@@ -1925,7 +1925,7 @@ try {
           assert.equal(sourceCreate.status, 400)
           assert.equal((await sourceCreate.json()).code, "enforcing_image_required")
           assert.deepEqual(await Storage.list(["session", Instance.project.id]), sessions)
-          const sourceStart = await app.request(`/runs/${saved.remoteRunId}/grant-review/start`, {
+          const sourceStart = await app.request(`http://dax.internal/runs/${saved.remoteRunId}/grant-review/start`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ expected: (await GrantReview.inspect(saved.remoteRunId)).expected }),

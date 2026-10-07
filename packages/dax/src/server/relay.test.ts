@@ -30,6 +30,23 @@ test("unmatched methods and bodies are never relayed to a remote host", async ()
         method,
         ...(method === "GET" ? {} : { body: "private request data" }),
       })
+      expect(response.status).toBe(method === "GET" ? 404 : 403)
+    }
+    secrets.mockResolvedValue({
+      source: { type: "env" },
+      raw: new Map(),
+      serverPassword: "owned-relay-password",
+      serverUsername: undefined,
+      substrateToken: undefined,
+      natsCreds: undefined,
+      natsCredsData: undefined,
+    })
+    for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
+      const response = await Server.App().request("http://localhost:4096/unknown-route", {
+        method,
+        headers: { authorization: `Basic ${btoa("dax:owned-relay-password")}` },
+        ...(method === "GET" ? {} : { body: "private request data" }),
+      })
       expect(response.status).toBe(404)
     }
     expect(fetch).not.toHaveBeenCalled()

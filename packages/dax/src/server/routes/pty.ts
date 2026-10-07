@@ -1,3 +1,4 @@
+import { privilegedMutation } from "../transport-security"
 import { Hono } from "hono"
 import { describeRoute, validator, resolver } from "hono-openapi"
 import { upgradeWebSocket } from "hono/bun"
@@ -133,6 +134,7 @@ export const PtyRoutes = lazy(() =>
     )
     .get(
       "/:ptyID/connect",
+      privilegedMutation,
       describeRoute({
         summary: "Connect to PTY session",
         description: "Establish a WebSocket connection to interact with a pseudo-terminal (PTY) session in real-time.",

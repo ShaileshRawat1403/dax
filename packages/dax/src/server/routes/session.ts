@@ -1,3 +1,4 @@
+import { privilegedMutation } from "../transport-security"
 import { Hono } from "hono"
 import { Bus } from "@/bus"
 import { stream } from "hono/streaming"
@@ -383,7 +384,7 @@ export const SessionRoutes = lazy(() =>
       ),
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
-        if (!await AntigravityConversation.cancelSession(sessionID)) SessionPrompt.cancel(sessionID)
+        if (!(await AntigravityConversation.cancelSession(sessionID))) SessionPrompt.cancel(sessionID)
         return c.json(true)
       },
     )
@@ -731,11 +732,14 @@ export const SessionRoutes = lazy(() =>
       async (c) => {
         const sessionID = c.req.valid("param").sessionID
         const body = c.req.valid("json")
-        if (body.model?.providerID === "worker:antigravity" || await AntigravityConversation.isBound(sessionID)) {
+        if (body.model?.providerID === "worker:antigravity" || (await AntigravityConversation.isBound(sessionID))) {
           try {
             return c.json(await SessionPrompt.prompt({ ...body, sessionID }))
           } catch (error) {
-            return c.json({ name: "UnknownError", data: { message: error instanceof Error ? error.message : String(error) } }, 409)
+            return c.json(
+              { name: "UnknownError", data: { message: error instanceof Error ? error.message : String(error) } },
+              409,
+            )
           }
         }
         c.status(200)
@@ -775,12 +779,23 @@ export const SessionRoutes = lazy(() =>
         return stream(c, async () => {
           const sessionID = c.req.valid("param").sessionID
           const body = c.req.valid("json")
-          void SessionPrompt.prompt({ ...body, sessionID }).catch(async (error) => {
-            log.error("async prompt failed", { sessionID, message: error instanceof Error ? error.message : String(error) })
-            await Bus.publish(Session.Event.Error, { sessionID, error: { name: "UnknownError", data: { message: error instanceof Error ? error.message : String(error) } } })
-          }).catch((error) => {
-            log.error("prompt error notification failed", { sessionID, message: String(error) })
-          })
+          void SessionPrompt.prompt({ ...body, sessionID })
+            .catch(async (error) => {
+              log.error("async prompt failed", {
+                sessionID,
+                message: error instanceof Error ? error.message : String(error),
+              })
+              await Bus.publish(Session.Event.Error, {
+                sessionID,
+                error: {
+                  name: "UnknownError",
+                  data: { message: error instanceof Error ? error.message : String(error) },
+                },
+              })
+            })
+            .catch((error) => {
+              log.error("prompt error notification failed", { sessionID, message: String(error) })
+            })
         })
       },
     )
@@ -920,6 +935,7 @@ export const SessionRoutes = lazy(() =>
     )
     .post(
       "/:sessionID/permissions/:permissionID",
+      privilegedMutation,
       describeRoute({
         summary: "Respond to permission",
         deprecated: true,

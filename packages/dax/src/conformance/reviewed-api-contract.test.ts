@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, expect, test } from "bun:test"
+import * as Secrets from "@/secrets/secrets-loader"
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -13,9 +14,15 @@ import { readRunEvents } from "@/state/events/run-event-store"
 import { createDaxClient as v1 } from "../../../sdk/js/src/client"
 import { createDaxClient as v2 } from "../../../sdk/js/src/v2/client"
 
+const authorization = `Basic ${btoa("operator:owned-contract-test-password")}`
+let secret: ReturnType<typeof spyOn<typeof Secrets, "getSecrets">>
 let home: string
 let oldHome: string | undefined
 beforeEach(async () => {
+  secret = spyOn(Secrets, "getSecrets").mockResolvedValue({
+    serverUsername: "operator",
+    serverPassword: "owned-contract-test-password",
+  } as never)
   oldHome = process.env.DAX_TEST_HOME
   home = await fs.mkdtemp(path.join(os.tmpdir(), "dax-reviewed-api-contract-"))
   process.env.DAX_TEST_HOME = home
@@ -24,6 +31,7 @@ beforeEach(async () => {
   Config.global.reset()
 })
 afterEach(async () => {
+  secret.mockRestore()
   await Instance.disposeAll()
   Config.global.reset()
   if (oldHome === undefined) delete process.env.DAX_TEST_HOME
@@ -47,7 +55,7 @@ test("real Hono reviewed validator/refusal/missing responses match additive Open
       const request = (url: string, body: unknown) =>
         app.request(url, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", authorization },
           body: JSON.stringify(body),
         })
       for (const suffix of ["start", "revisions"] as const) {
@@ -64,7 +72,7 @@ test("real Hono reviewed validator/refusal/missing responses match additive Open
         expect(operation?.responses?.[missing.status]).toBeDefined()
         const malformed = await app.request(url, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: { "content-type": "application/json", authorization },
           body: "{",
         })
         expect(malformed.status).toBe(400)
@@ -119,6 +127,7 @@ for (const [name, create] of [
         const app = new Hono().route("/runs", RunRoutes())
         const client = create({
           baseUrl: "http://dax.local",
+          headers: { authorization },
           fetch: Object.assign(
             async (request: RequestInfo | URL, init?: RequestInit) => app.fetch(new Request(request, init)),
             {

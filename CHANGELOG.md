@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No additional changes after the prepared 2.0.0 candidate.
+
+## [2.0.0] - 2026-10-07
+
+Prepared release candidate; publication and the final release date remain pending.
+
+### Migration
+
+- HTTP mutations and terminal WebSocket control require configured operator Basic
+  credentials, including on loopback. Set `DAX_SERVER_PASSWORD` and optionally
+  `DAX_SERVER_USERNAME`; passwordless HTTP is read-only. The private in-process
+  TUI path remains available. Actor names remain audit labels, not verified people.
+- Project memory/settings approval must use the protected exact-digest review
+  endpoint; generic run approval/denial cannot decide those candidates.
+- Reauthenticate issuerless historical MCP credentials. Pre-registered clients
+  must specify `oauth.expectedIssuer` from their trusted authorization-server
+  configuration; add/debug now preserve it and authentication status reflects
+  whether credentials are usable.
+- Do not open new journals with v1.5.0. Preserve old state/backups and use the
+  matching newer binary; historical records are not silently migrated.
+- Reviewed execution remains an explicit compiled generic-run opt-in. Unsupported
+  plugin/local-MCP/worker/verifier bindings remain blocked. Legacy V1/no-contract
+  behavior is explicit compatibility, not reviewed V2 grant enforcement.
+
 ### Added
 
 - Governed task delegation now records run-owned parent/child session provenance,

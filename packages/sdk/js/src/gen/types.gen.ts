@@ -1981,6 +1981,8 @@ export type McpOAuthConfig = {
    * OAuth client secret (if required by the authorization server)
    */
   clientSecret?: string
+  /** Trusted authorization-server URL for a pre-registered client. */
+  expectedIssuer?: string
   /**
    * OAuth scopes to request during authorization
    */
@@ -3216,6 +3218,10 @@ export type GlobalConfigUpdateData = {
 }
 
 export type GlobalConfigUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3259,6 +3265,10 @@ export type AuthRemoveData = {
 }
 
 export type AuthRemoveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3286,6 +3296,10 @@ export type AuthSetData = {
 }
 
 export type AuthSetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3364,6 +3378,10 @@ export type ProjectUpdateData = {
 }
 
 export type ProjectUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3421,6 +3439,10 @@ export type PtyCreateData = {
 }
 
 export type PtyCreateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3450,6 +3472,10 @@ export type PtyRemoveData = {
 }
 
 export type PtyRemoveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -3479,6 +3505,10 @@ export type PtyGetData = {
 }
 
 export type PtyGetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -3514,6 +3544,10 @@ export type PtyUpdateData = {
 }
 
 export type PtyUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3543,6 +3577,10 @@ export type PtyConnectData = {
 }
 
 export type PtyConnectErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -3588,6 +3626,10 @@ export type ConfigUpdateData = {
 }
 
 export type ConfigUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3638,6 +3680,10 @@ export type ToolIdsData = {
 }
 
 export type ToolIdsErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3667,6 +3713,10 @@ export type ToolListData = {
 }
 
 export type ToolListErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3694,6 +3744,10 @@ export type WorktreeRemoveData = {
 }
 
 export type WorktreeRemoveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3739,6 +3793,10 @@ export type WorktreeCreateData = {
 }
 
 export type WorktreeCreateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3766,6 +3824,10 @@ export type WorktreeResetData = {
 }
 
 export type WorktreeResetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3855,6 +3917,10 @@ export type SessionCreateData = {
 }
 
 export type SessionCreateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3882,6 +3948,10 @@ export type SessionStatusData = {
 }
 
 export type SessionStatusErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3913,6 +3983,10 @@ export type SessionDeleteData = {
 }
 
 export type SessionDeleteErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3946,6 +4020,10 @@ export type SessionGetData = {
 }
 
 export type SessionGetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -3984,6 +4062,10 @@ export type SessionUpdateData = {
 }
 
 export type SessionUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4017,6 +4099,10 @@ export type SessionChildrenData = {
 }
 
 export type SessionChildrenErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4053,6 +4139,10 @@ export type SessionTodoData = {
 }
 
 export type SessionTodoErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4093,6 +4183,10 @@ export type SessionInitData = {
 }
 
 export type SessionInitErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4148,6 +4242,10 @@ export type SessionAbortData = {
 }
 
 export type SessionAbortErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4181,6 +4279,10 @@ export type SessionUnshareData = {
 }
 
 export type SessionUnshareErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4214,6 +4316,10 @@ export type SessionShareData = {
 }
 
 export type SessionShareErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4275,6 +4381,10 @@ export type SessionSummarizeData = {
 }
 
 export type SessionSummarizeErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4312,6 +4422,10 @@ export type SessionMessagesData = {
 }
 
 export type SessionMessagesErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4369,6 +4483,10 @@ export type SessionPromptData = {
 }
 
 export type SessionPromptErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4412,6 +4530,10 @@ export type SessionMessageData = {
 }
 
 export type SessionMessageErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4459,6 +4581,10 @@ export type PartDeleteData = {
 }
 
 export type PartDeleteErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4503,6 +4629,10 @@ export type PartUpdateData = {
 }
 
 export type PartUpdateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4557,6 +4687,10 @@ export type SessionPromptAsyncData = {
 }
 
 export type SessionPromptAsyncErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4608,6 +4742,10 @@ export type SessionCommandData = {
 }
 
 export type SessionCommandErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4654,6 +4792,10 @@ export type SessionShellData = {
 }
 
 export type SessionShellErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4690,6 +4832,10 @@ export type SessionRevertData = {
 }
 
 export type SessionRevertErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4723,6 +4869,10 @@ export type SessionUnrevertData = {
 }
 
 export type SessionUnrevertErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4759,6 +4909,10 @@ export type PermissionRespondData = {
 }
 
 export type PermissionRespondErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4809,6 +4963,10 @@ export type RunCreateData = {
 }
 
 export type RunCreateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -4840,6 +4998,10 @@ export type RunGetData = {
 }
 
 export type RunGetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -4870,6 +5032,10 @@ export type RunEventsData = {
 }
 
 export type RunEventsErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -4920,6 +5086,10 @@ export type RunApprovalsResolveData = {
 }
 
 export type RunApprovalsResolveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -4951,6 +5121,10 @@ export type RunArtifactsListData = {
 }
 
 export type RunArtifactsListErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -4980,6 +5154,10 @@ export type RunSummaryData = {
 }
 
 export type RunSummaryErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -5009,6 +5187,10 @@ export type RunProjectionsData = {
 }
 
 export type RunProjectionsErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -5157,6 +5339,10 @@ export type SoothsayerRunsGetData = {
 }
 
 export type SoothsayerRunsGetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Run not found
    */
@@ -5289,6 +5475,10 @@ export type SoothsayerRunsApprovalsResolveData = {
 }
 
 export type SoothsayerRunsApprovalsResolveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Approval not found
    */
@@ -5372,6 +5562,10 @@ export type PermissionReplyData = {
 }
 
 export type PermissionReplyErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5446,6 +5640,10 @@ export type QuestionReplyData = {
 }
 
 export type QuestionReplyErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5479,6 +5677,10 @@ export type QuestionRejectData = {
 }
 
 export type QuestionRejectErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5627,6 +5829,10 @@ export type ProviderOauthAuthorizeData = {
 }
 
 export type ProviderOauthAuthorizeErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5668,6 +5874,10 @@ export type ProviderOauthCallbackData = {
 }
 
 export type ProviderOauthCallbackErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5850,6 +6060,10 @@ export type McpAddData = {
 }
 
 export type McpAddErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -5981,6 +6195,10 @@ export type McpAuthRemoveData = {
 }
 
 export type McpAuthRemoveErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Not found
    */
@@ -6012,6 +6230,10 @@ export type McpAuthStartData = {
 }
 
 export type McpAuthStartErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6055,6 +6277,10 @@ export type McpAuthCallbackData = {
 }
 
 export type McpAuthCallbackErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6088,6 +6314,10 @@ export type McpAuthAuthenticateData = {
 }
 
 export type McpAuthAuthenticateErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6161,6 +6391,10 @@ export type TuiAppendPromptData = {
 }
 
 export type TuiAppendPromptErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6298,6 +6532,10 @@ export type TuiExecuteCommandData = {
 }
 
 export type TuiExecuteCommandErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6351,6 +6589,10 @@ export type TuiPublishData = {
 }
 
 export type TuiPublishErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6383,6 +6625,10 @@ export type TuiSelectSessionData = {
 }
 
 export type TuiSelectSessionErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6544,6 +6790,10 @@ export type AppLogData = {
 }
 
 export type AppLogErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Bad request
    */
@@ -6830,6 +7080,10 @@ export type RunGrantReviewGetData = {
 }
 
 export type RunGrantReviewGetErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Review missing
    */
@@ -6863,6 +7117,10 @@ export type RunGrantReviewReviseData = {
 }
 
 export type RunGrantReviewReviseErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Invalid operator input
    */
@@ -6897,6 +7155,10 @@ export type RunGrantReviewStartData = {
 }
 
 export type RunGrantReviewStartErrors = {
+  /** Missing or invalid operator credentials. */
+  401: string
+  /** Forbidden transport or unconfigured operator authentication. */
+  403: { error: string }
   /**
    * Invalid start input
    */

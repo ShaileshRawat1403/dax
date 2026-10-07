@@ -1,3 +1,4 @@
+import { privilegedMutation } from "../transport-security"
 import { Hono } from "hono"
 import { describeRoute, validator, resolver } from "hono-openapi"
 import z from "zod"
@@ -9,6 +10,7 @@ export const PermissionRoutes = lazy(() =>
   new Hono()
     .post(
       "/:requestID/reply",
+      privilegedMutation,
       describeRoute({
         summary: "Respond to permission request",
         description: "Approve or deny a permission request from the AI assistant.",

@@ -1,3 +1,4 @@
+import { RunGateway } from "@/server/run-gateway"
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import { mkdtemp, mkdir, rm } from "node:fs/promises"
 import os from "node:os"
@@ -218,6 +219,52 @@ describe("project-owned journal", () => {
       expect(await rejection(readProjectFactCandidate(deniedId))).toBeInstanceOf(Error)
       expect((await readProjectEvents()).length).toBe(2)
     } })
+  }, 20_000)
+
+  test("generic approval resolution cannot decide a protected project candidate", async () => {
+    await Instance.provide({
+      directory: repoRoot,
+      async fn() {
+        for (const decision of ["approve", "deny"] as const) {
+          const run = await runSource()
+          await appendRunEventAtTail(run.scopeId, { type: "execution_queued", payload: {} })
+          await appendRunEventAtTail(run.scopeId, { type: "workflow_started", payload: {} })
+          const candidateId = `pfc_${crypto.randomUUID().replaceAll("-", "")}`
+          await proposeProjectFact({
+            runId: run.scopeId,
+            candidateId,
+            change: {
+              type: "project_fact_promoted",
+              payload: { fact: fact(`protected_${decision}`) },
+            },
+          })
+          const candidate = await readProjectFactCandidate(candidateId)
+          const before = await readRunEvents(run.scopeId)
+          const projectBefore = await readProjectEvents()
+          const refused = await rejection(
+            RunGateway.resolveApproval(run.scopeId, candidate.approvalId, {
+              decision,
+              actorId: "forged-operator",
+            }),
+          )
+          expect(refused).toHaveProperty("code", "project_fact_review_endpoint_required")
+          expect(await readRunEvents(run.scopeId)).toEqual(before)
+          expect(await readProjectEvents()).toEqual(projectBefore)
+          // The rejected alternate path must not poison the real digest-bound review.
+          await reviewProjectFact({
+            candidateId,
+            actor: "operator",
+            decision: "approved",
+            digest: candidate.subject.digest,
+          })
+          expect(
+            (await readApprovedProjectMemory({ project_id: Instance.project.id, limit: 10 })).entries.some(
+              (entry) => entry.id === `protected_${decision}`,
+            ),
+          ).toBe(true)
+        }
+      },
+    })
   }, 20_000)
 
   test("production memory projection uses only active journal facts and survives source removal", async () => {

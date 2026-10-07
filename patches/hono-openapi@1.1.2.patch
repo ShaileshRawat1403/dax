@@ -1,0 +1,46 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -323,8 +323,17 @@
+     };
+     if (tmp.responses) {
+       for (const key of Object.keys(tmp.responses)) {
+-        const response = tmp.responses[key];
+-        if (!response || !("content" in response)) continue;
++        const originalResponse = tmp.responses[key];
++        if (!originalResponse || !("content" in originalResponse)) continue;
++        // Response metadata belongs to the route, not this generation. Never
++        // replace a shared resolver with a reference that loses its components.
++        const response = {
++          ...originalResponse,
++          content: Object.fromEntries(Object.entries(originalResponse.content ?? {}).map(
++            ([mediaType, media]) => [mediaType, media ? { ...media } : media]
++          ))
++        };
++        tmp.responses[key] = response;
+         for (const contentKey of Object.keys(response.content ?? {})) {
+           const raw = response.content?.[contentKey];
+           if (!raw) continue;
+diff --git a/dist/index.cjs b/dist/index.cjs
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -325,8 +325,17 @@
+     };
+     if (tmp.responses) {
+       for (const key of Object.keys(tmp.responses)) {
+-        const response = tmp.responses[key];
+-        if (!response || !("content" in response)) continue;
++        const originalResponse = tmp.responses[key];
++        if (!originalResponse || !("content" in originalResponse)) continue;
++        // Response metadata belongs to the route, not this generation. Never
++        // replace a shared resolver with a reference that loses its components.
++        const response = {
++          ...originalResponse,
++          content: Object.fromEntries(Object.entries(originalResponse.content ?? {}).map(
++            ([mediaType, media]) => [mediaType, media ? { ...media } : media]
++          ))
++        };
++        tmp.responses[key] = response;
+         for (const contentKey of Object.keys(response.content ?? {})) {
+           const raw = response.content?.[contentKey];
+           if (!raw) continue;

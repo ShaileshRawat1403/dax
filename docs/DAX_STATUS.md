@@ -1,5 +1,19 @@
 # DAX current ownership and release work
 
+## Release preparation — 2026-10-07
+
+Version 2.0.0 is prepared on `release/2.0.0-candidate`, not published. Fresh
+review found and reproduced an alternate project-approval path and missing OAuth
+issuer call sites. [The corrections and validation](tooling/release-2.0.0-validation.md)
+cover those findings, HTTP operator credentials and terminal control. The original
+candidate sprint ledger remains empty within documented scope; it is not a claim
+of defect freedom. [Migration and supported limits](product/release-2.0.0.md)
+explicitly retain unavailable reviewed bindings, shared-secret identity limitations
+and older-journal incompatibility. Final gates, packaging/installer checks and
+exact-SHA CI are required before maintainer integration/publication. v1.5.0 and
+the installed binary remain unchanged. Earlier dated sections are historical.
+
+
 ## Cold typechecks and platform diagnostics — 2026-10-07
 
 The final candidate's Windows typecheck launcher exited without a compiler

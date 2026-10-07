@@ -1,3 +1,4 @@
+import { privilegedMutation } from "../transport-security"
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
 import { describeRoute, resolver, validator } from "hono-openapi"
@@ -165,6 +166,7 @@ export const RunRoutes = lazy(() =>
     )
     .post(
       "/:runID/grant-review/revisions",
+      privilegedMutation,
       describeRoute({
         summary: "Revise reviewed capability grants",
         operationId: "run.grantReview.revise",
@@ -195,6 +197,7 @@ export const RunRoutes = lazy(() =>
     )
     .post(
       "/:runID/grant-review/start",
+      privilegedMutation,
       describeRoute({
         summary: "Claim initial reviewed run dispatch",
         operationId: "run.grantReview.start",
@@ -357,6 +360,7 @@ export const RunRoutes = lazy(() =>
     )
     .post(
       "/:runID/approvals/:approvalID",
+      privilegedMutation,
       describeRoute({
         summary: "Resolve approval",
         description: "Approve or deny a pending run approval through the external run API.",

@@ -1,7 +1,7 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
 import { Log } from "../util/log"
-import { describeRoute, generateSpecs, validator, resolver, openAPIRouteHandler } from "hono-openapi"
+import { describeRoute, generateSpecs, validator, resolver } from "hono-openapi"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { streamSSE } from "hono/streaming"
@@ -48,7 +48,13 @@ import { SubstrateRoutes } from "./routes/substrate"
 import { SandboxRoutes } from "./routes/sandbox"
 import { getSecrets } from "@/secrets/secrets-loader"
 import { initialize as initializeOtel } from "@/runtime/otel"
-import { configureTransport, isAllowedOrigin, transportSecurity } from "./transport-security"
+import {
+  configureTransport,
+  isAllowedOrigin,
+  isInternalRequest,
+  privilegedMutation,
+  transportSecurity,
+} from "./transport-security"
 import { authorizedDirectory, setLaunchDirectory } from "./directory-boundary"
 
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
@@ -93,8 +99,14 @@ export namespace Server {
           })
         })
         .use(transportSecurity)
+        // HTTP writes are operator actions, even on loopback. The private
+        // in-process TUI retains its established trusted request boundary.
         .use(async (c, next) => {
-          if (c.req.method === "OPTIONS") return next()
+          if (["GET", "HEAD", "OPTIONS"].includes(c.req.method)) return next()
+          return privilegedMutation(c, next)
+        })
+        .use(async (c, next) => {
+          if (isInternalRequest(c) || c.req.method === "OPTIONS") return next()
           const secrets = await getSecrets()
           const password = secrets.serverPassword
           if (!password) return next()
@@ -209,19 +221,7 @@ export namespace Server {
             },
           })
         })
-        .get(
-          "/doc",
-          openAPIRouteHandler(app, {
-            documentation: {
-              info: {
-                title: "dax",
-                version: Installation.VERSION,
-                description: "dax api",
-              },
-              openapi: "3.1.1",
-            },
-          }),
-        )
+        .get("/doc", async (c) => c.json(await openapi()))
         .use(validator("query", z.object({ directory: z.string().optional() })))
         .route("/project", ProjectRoutes())
         .route("/pty", PtyRoutes())
@@ -557,6 +557,42 @@ export namespace Server {
         openapi: "3.1.1",
       },
     })
+    result.components ??= {}
+    result.components.securitySchemes = {
+      ...result.components.securitySchemes,
+      operatorBasic: {
+        type: "http",
+        scheme: "basic",
+        description: "Configured DAX operator credentials; actor names remain audit labels.",
+      },
+    }
+    for (const item of Object.values(result.paths ?? {})) {
+      for (const method of ["get", "post", "put", "patch", "delete"] as const) {
+        const operation = item[method]
+        if (
+          !operation ||
+          (method === "get" &&
+            !["pty.connect", "project.fact.candidate", "project.settings.reviewInput"].includes(
+              operation.operationId ?? "",
+            ))
+        )
+          continue
+        operation.security = [{ operatorBasic: [] }]
+        operation.responses ??= {}
+        operation.responses["401"] = {
+          description: "Missing or invalid operator credentials",
+          content: { "text/plain": { schema: { type: "string" } } },
+        }
+        operation.responses["403"] = {
+          description: "Operator actions require a configured server password",
+          content: {
+            "application/json": {
+              schema: { type: "object", required: ["error"], properties: { error: { type: "string" } } },
+            },
+          },
+        }
+      }
+    }
     return result
   }
 

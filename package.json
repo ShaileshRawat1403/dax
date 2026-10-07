@@ -134,6 +134,7 @@
     "printWidth": 120
   },
   "patchedDependencies": {
-    "gray-matter@4.0.3": "patches/gray-matter@4.0.3.patch"
+    "gray-matter@4.0.3": "patches/gray-matter@4.0.3.patch",
+    "hono-openapi@1.1.2": "patches/hono-openapi@1.1.2.patch"
   }
 }

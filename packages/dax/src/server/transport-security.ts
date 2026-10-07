@@ -1,3 +1,4 @@
+import { basicAuth } from "hono/basic-auth"
 import type { Context, MiddlewareHandler } from "hono"
 import { getSecrets } from "@/secrets/secrets-loader"
 
@@ -47,12 +48,12 @@ export const privilegedMutation: MiddlewareHandler = async (c, next) => {
     return c.json(
       {
         error:
-          "Refusing a configuration write on an unauthenticated server. Set DAX_SERVER_PASSWORD, or make this change from the DAX interface.",
+          "Refusing an operator action on an unauthenticated server. Set DAX_SERVER_PASSWORD, or make this change from the DAX interface.",
       },
       403,
     )
   }
-  return next()
+  return basicAuth({ username: secrets.serverUsername ?? "dax", password: secrets.serverPassword })(c, next)
 }
 
 export const transportSecurity: MiddlewareHandler = async (c, next) => {

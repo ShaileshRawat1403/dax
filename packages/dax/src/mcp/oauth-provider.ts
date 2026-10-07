@@ -13,7 +13,7 @@ const log = Log.create({ service: "mcp.oauth" })
 const OAUTH_CALLBACK_PORT = 19876
 const OAUTH_CALLBACK_PATH = "/mcp/oauth/callback"
 
-function validIssuer(value: unknown): value is string {
+export function validIssuer(value: unknown): value is string {
   if (typeof value !== "string") return false
   try {
     const url = new URL(value)

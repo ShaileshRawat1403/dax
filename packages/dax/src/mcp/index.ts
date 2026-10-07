@@ -15,7 +15,7 @@ import z from "zod/v4"
 import { Instance } from "../project/instance"
 import { Installation } from "../installation"
 import { withTimeout } from "@/util/timeout"
-import { McpOAuthProvider } from "./oauth-provider"
+import { validIssuer, McpOAuthProvider } from "./oauth-provider"
 import { McpOAuthCallback } from "./oauth-callback"
 import { McpAuth } from "./auth"
 import { BusEvent } from "../bus/bus-event"
@@ -1270,8 +1270,10 @@ export namespace MCP {
    * Get the authentication status for an MCP server.
    */
   export async function getAuthStatus(mcpName: string): Promise<AuthStatus> {
-    const hasTokens = await hasStoredTokens(mcpName)
-    if (!hasTokens) return "not_authenticated"
+    const config = (await Config.get()).mcp?.[mcpName]
+    if (!config || !isMcpConfigured(config) || config.type !== "remote") return "not_authenticated"
+    const entry = await McpAuth.getForUrl(mcpName, config.url)
+    if (!entry?.tokens || !validIssuer(entry.tokens.issuer)) return "not_authenticated"
     const expired = await McpAuth.isTokenExpired(mcpName)
     return expired ? "expired" : "authenticated"
   }
