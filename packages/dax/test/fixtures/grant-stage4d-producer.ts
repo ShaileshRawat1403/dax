@@ -1,5 +1,10 @@
 /** Genuine compiled production modules; no image, authority, dispatch or provider spies. */
 import assert from "node:assert/strict"
+import z from "zod"
+import { Tool } from "@/tool/tool"
+import { ToolRegistry } from "@/tool/registry"
+import { WorkflowRegistry } from "@/workflows/registry"
+import { verifyWorkerPatch } from "@/worker/worker-verification"
 import { Server as McpServer } from "@modelcontextprotocol/sdk/server/index.js"
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
 import {
@@ -154,94 +159,110 @@ const model = Bun.serve({
       // dispatch is pending. No graceful cancellation or settlement runs.
       return await new Promise<Response>(() => {})
     }
+    const wantsUnbound = latestUser.includes("PRODUCER_UNBOUND") && offers("owned_unbound") && !hasResult
     const wantsMcp = !!mcpAlias && !hasResult
     const wantsBatch = latestUser.includes("PRODUCER_BATCH") && offers("batch") && !hasResult
     const wantsTask = latestUser.includes("PRODUCER_TASK_") && offers("task") && !hasResult
     const wantsRead = latestUser.includes("PRODUCER_READ") && offers("read") && !hasResult
     const taskId = latestUser.match(/PRODUCER_TASK_RESUME (ses_[a-zA-Z0-9_-]+)/)?.[1]
-    const choice = wantsBatch
+    const choice = wantsUnbound
       ? {
           delta: {
             role: "assistant",
             tool_calls: [
               {
                 index: 0,
-                id: `call_batch_${providerCalls}`,
+                id: `call_unbound_${providerCalls}`,
                 type: "function",
-                function: {
-                  name: "batch",
-                  arguments: JSON.stringify({
-                    tool_calls: [
-                      { tool: "read", parameters: { filePath: evidence } },
-                      {
-                        tool: "write",
-                        parameters: { filePath: path.join(directory, "batch-forbidden"), content: "must not write" },
-                      },
-                    ],
-                  }),
-                },
+                function: { name: "owned_unbound", arguments: "{}" },
               },
             ],
           },
           finish_reason: null,
         }
-      : wantsMcp
+      : wantsBatch
         ? {
             delta: {
               role: "assistant",
               tool_calls: [
                 {
                   index: 0,
-                  id: `call_mcp_${providerCalls}`,
+                  id: `call_batch_${providerCalls}`,
                   type: "function",
-                  function: { name: mcpAlias, arguments: "{}" },
+                  function: {
+                    name: "batch",
+                    arguments: JSON.stringify({
+                      tool_calls: [
+                        { tool: "read", parameters: { filePath: evidence } },
+                        {
+                          tool: "write",
+                          parameters: { filePath: path.join(directory, "batch-forbidden"), content: "must not write" },
+                        },
+                      ],
+                    }),
+                  },
                 },
               ],
             },
             finish_reason: null,
           }
-        : wantsTask
+        : wantsMcp
           ? {
               delta: {
                 role: "assistant",
                 tool_calls: [
                   {
                     index: 0,
-                    id: `call_task_${providerCalls}`,
+                    id: `call_mcp_${providerCalls}`,
                     type: "function",
-                    function: {
-                      name: "task",
-                      arguments: JSON.stringify({
-                        description: "Inspect controlled evidence",
-                        prompt: "PRODUCER_READ: inspect the evidence file.",
-                        subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
-                          ? "deliberately_missing_agent"
-                          : "general",
-                        ...(taskId ? { task_id: taskId } : {}),
-                      }),
-                    },
+                    function: { name: mcpAlias, arguments: "{}" },
                   },
                 ],
               },
               finish_reason: null,
             }
-          : wantsRead
+          : wantsTask
             ? {
                 delta: {
                   role: "assistant",
                   tool_calls: [
                     {
                       index: 0,
-                      id: `call_read_${providerCalls}`,
+                      id: `call_task_${providerCalls}`,
                       type: "function",
-                      function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                      function: {
+                        name: "task",
+                        arguments: JSON.stringify({
+                          description: "Inspect controlled evidence",
+                          prompt: "PRODUCER_READ: inspect the evidence file.",
+                          subagent_type: latestUser.includes("PRODUCER_TASK_UNKNOWN")
+                            ? "deliberately_missing_agent"
+                            : "general",
+                          ...(taskId ? { task_id: taskId } : {}),
+                        }),
+                      },
                     },
                   ],
                 },
                 finish_reason: null,
               }
-            : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
-    const finish = wantsBatch || wantsMcp || wantsTask || wantsRead ? "tool_calls" : "stop"
+            : wantsRead
+              ? {
+                  delta: {
+                    role: "assistant",
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: `call_read_${providerCalls}`,
+                        type: "function",
+                        function: { name: "read", arguments: JSON.stringify({ filePath: evidence }) },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                }
+              : { delta: { role: "assistant", content: "Evidence inspected." }, finish_reason: null }
+    const finish = wantsUnbound || wantsBatch || wantsMcp || wantsTask || wantsRead ? "tool_calls" : "stop"
     const data =
       [choice, { delta: {}, finish_reason: finish }]
         .map(
@@ -411,6 +432,96 @@ try {
           assert.ok((await Session.messages({ sessionID: runId })).some((message) => message.info.role === "assistant"))
         }
         controls.push(`api-cross-process-start-${response.status}`)
+      } else if (phase === "unsupported") {
+        const effect = path.join(directory, "unbound-tool-effect")
+        await ToolRegistry.register(
+          Tool.define("owned_unbound", {
+            description: "Owned unbound execution control",
+            parameters: z.object({}),
+            result: Tool.result(z.object({})),
+            async execute() {
+              await fs.writeFile(effect, "must never run")
+              return { title: "owned", output: "executed", metadata: {} }
+            },
+          }),
+        )
+        const reviewed = await createGrantReviewedRun(
+          { request, availableTools: ["owned_unbound", "read"] },
+          { writeScope: { roots: ["."], reviewed: true } },
+        )
+        assert.ok(reviewed.revision.proposal.excluded.some((item) => item.alias === "owned_unbound"))
+        await approve(reviewed)
+        await publish(reviewed)
+        await GrantReview.activate(reviewed.runId)
+        await GrantReview.claimStart(reviewed.runId, (await GrantReview.inspect(reviewed.runId)).expected)
+        await textPrompt(reviewed.runId, "PRODUCER_UNBOUND: invoke the owned custom tool.")
+        const state = (await projectRunStateFromEvents(reviewed.runId))!
+        assert.ok(
+          state.capabilityResolutions.some(
+            (item) => item.path === "native_tool" && item.decision === "deny" && item.enforcement === "enforced",
+          ),
+        )
+        assert.equal(await fs.exists(effect), false)
+        assert.deepEqual(reduceRunState(await readRunEvents(reviewed.runId)), state)
+        controls.push("compiled-custom-tool-attempt-durable-denial-zero-effect")
+
+        const verification = await active()
+        await GrantReview.claimStart(verification.runId, (await GrantReview.inspect(verification.runId)).expected)
+        const verifyEffect = path.join(directory, "worker-verification-effect")
+        await fs.writeFile(
+          path.join(directory, "package.json"),
+          JSON.stringify({
+            name: "owned-verification",
+            scripts: { test: "bun -e \"require('fs').writeFileSync('worker-verification-effect','ran')\"" },
+          }),
+        )
+        await assert.rejects(
+          verifyWorkerPatch({ runId: verification.runId, cwd: directory, commands: ["bun run test"] }),
+          CapabilityActionDeniedError,
+        )
+        const verifyState = (await projectRunStateFromEvents(verification.runId))!
+        assert.ok(
+          verifyState.capabilityResolutions.some(
+            (item) =>
+              item.path === "verification_command" && item.enforcement === "enforced" && item.decision === "deny",
+          ),
+        )
+        assert.equal(await fs.exists(verifyEffect), false)
+        assert.deepEqual(reduceRunState(await readRunEvents(verification.runId)), verifyState)
+        controls.push("compiled-worker-verification-denial-before-command")
+
+        for (const workflowClass of WorkflowRegistry.list()) {
+          const created = await createGrantReviewedRun({
+            request: {
+              intent: {
+                input:
+                  workflowClass === "draft_and_approve"
+                    ? "Create a controlled draft"
+                    : workflowClass === "review_and_signoff"
+                      ? "Review controlled code"
+                      : "Inspect controlled repository",
+              },
+              workflowHint: workflowClass,
+              ...(workflowClass === "worker_run" ? { personaPreset: { providerHint: "worker:codex" } } : {}),
+            },
+            availableTools: ["read"],
+          })
+          assert.equal(created.revision.proposal.candidate.workflowClass, workflowClass)
+          const before = await readRunEvents(created.runId)
+          const calls = providerCalls
+          const workflow = WorkflowRegistry.create(workflowClass, {
+            runId: created.runId,
+            contract: created.revision.proposal.candidate as never,
+          })!
+          await assert.rejects(workflow.execute(), GrantReviewBarrierError)
+          assert.equal(providerCalls, calls)
+          assert.deepEqual(await readRunEvents(created.runId), before)
+          assert.equal((await Session.messages({ sessionID: created.runId })).length, 0)
+          const projected = (await projectRunStateFromEvents(created.runId))!
+          assert.equal(Object.keys(projected.steps).length, 0)
+          assert.deepEqual(reduceRunState(before), projected)
+          controls.push(`compiled-pending-${workflowClass}-refusal-before-steps`)
+        }
       } else if (phase === "paths") {
         const make = async (tools = ["read"]) => {
           const reviewed = await createGrantReviewedRun(

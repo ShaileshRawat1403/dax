@@ -115,6 +115,17 @@ describe("stage 4d genuine compiled production authority", () => {
         "compiled-template-and-attachment-real-content-and-replay",
         "compiled-batch-allowed-read-and-denied-write-zero-effect",
       ])
+      const unsupported = JSON.parse(
+        (await run("unsupported", [first, home, "unsupported"])).trim().split("\n").at(-1)!,
+      )
+      expect(unsupported.controls).toEqual([
+        "compiled-custom-tool-attempt-durable-denial-zero-effect",
+        "compiled-worker-verification-denial-before-command",
+        "compiled-pending-draft_and_approve-refusal-before-steps",
+        "compiled-pending-repo_analyze-refusal-before-steps",
+        "compiled-pending-review_and_signoff-refusal-before-steps",
+        "compiled-pending-worker_run-refusal-before-steps",
+      ])
       const debugOutput = (await run("debug", [first, home, "debug"])).trim().split("\n")
       const debug = JSON.parse(debugOutput.pop()!)
       const debugResult = JSON.parse(debugOutput.join("\n"))
@@ -258,6 +269,7 @@ describe("stage 4d genuine compiled production authority", () => {
         JSON.stringify({
           stage4d: matrix,
           paths,
+          unsupported,
           debug,
           identity,
           asked,
