@@ -117,7 +117,7 @@ export namespace Provider {
     async "claude-code"() {
       /**
        * Legacy API-key-only Claude provider alias.
-       * Uses Anthropic API with Claude Code beta features enabled.
+       * Uses the same API-key endpoint and supported beta features as Anthropic.
        * This provider inherits models from the main Anthropic provider.
        * @returns Provider configuration with beta headers for Claude Code features
        */

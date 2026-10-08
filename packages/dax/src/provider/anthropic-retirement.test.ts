@@ -18,7 +18,10 @@ test("persisted retired OAuth fails preflight without mutation; an environment A
       import { Instance } from ${moduleURL("project/instance.ts")};
       import { diagnoseProviderAuth, assertProviderAuth } from ${moduleURL("provider/auth-preflight.ts")};
       import { deepStrictEqual, strictEqual, rejects } from "node:assert";
-      import { Server } from ${moduleURL("server/server.ts")};
+      for (const key of ["DAX_SERVER_PASSWORD", "DAX_SERVER_USERNAME", "DAX_CONFIG", "DAX_CONFIG_CONTENT", "INFISICAL_CLIENT_ID", "INFISICAL_CLIENT_SECRET"]) {
+        strictEqual(process.env[key], undefined, "operator environment must be absent: " + key);
+      }
+      const { Server } = await import(${moduleURL("server/server.ts")});
       try {
         await Instance.provide({ directory: ${JSON.stringify(project)}, fn: async () => {
           for (const id of ["anthropic", "claude-code"]) {
@@ -51,9 +54,15 @@ test("persisted retired OAuth fails preflight without mutation; an environment A
       } finally { await Instance.disposeAll(); }
       console.log("retirement-controls-ok");
     `)
+    // Keep only executable/OS essentials. Never inherit operator credentials,
+    // provider keys, inline config, proxy settings or Infisical bootstrap state.
+    const parentEnv = { ...process.env, DAX_SERVER_PASSWORD: "fixture-operator-secret", DAX_CONFIG_CONTENT: "invalid-fixture-config" }
+    const essentialKeys = new Set(["PATH", "Path", "SystemRoot", "SYSTEMROOT", "COMSPEC", "ComSpec", "PATHEXT", "WINDIR", "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"])
+    const hostEnv = Object.fromEntries(Object.entries(parentEnv).filter(([key, value]) => essentialKeys.has(key) && value !== undefined))
     const child = Bun.spawn([process.execPath, "run", entry], {
       cwd: project,
-      env: { ...process.env, DAX_TEST_HOME: join(root, "home"),
+      env: { ...hostEnv, HOME: join(root, "home"), USERPROFILE: join(root, "home"),
+        APPDATA: join(root, "appdata"), LOCALAPPDATA: join(root, "localappdata"), DAX_TEST_HOME: join(root, "home"),
         XDG_CONFIG_HOME: join(root, "config"), XDG_DATA_HOME: join(root, "data"),
         XDG_STATE_HOME: join(root, "state"), XDG_CACHE_HOME: join(root, "cache"),
         ANTHROPIC_API_KEY: "", CLAUDE_API_KEY: "", DAX_DISABLE_MODELS_FETCH: "1",
