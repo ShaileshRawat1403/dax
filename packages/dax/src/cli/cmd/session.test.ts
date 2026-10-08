@@ -15,25 +15,98 @@ import {
 } from "./session"
 import { bootstrap } from "../bootstrap"
 import path from "path"
+import os from "node:os"
+import fs from "node:fs/promises"
+import { Instance } from "@/project/instance"
+import { Identifier } from "@/id/id"
 import { deriveSessionLifecycleFromMessages } from "../../session/lifecycle"
 import { Session } from "../../session"
 
-// The two summary/inspect checks below read a real persisted top-level session,
-// so they depend on ambient session state. Detect one up front: where a session
-// exists (a developer machine that has run DAX) they run; where none does (a
-// fresh machine or CI) they skip deterministically — visibly, not by failing or
-// silently passing. The synthetic-surface tests in this file already cover the
-// formatting and shape. TODO: seed a hermetic fixture session so these run
-// everywhere instead of skipping.
-const sessionSummaryRepoRoot = path.resolve(import.meta.dir, "../../../..")
-const recentTopLevelSessionID: string | null = await bootstrap(sessionSummaryRepoRoot, async () => {
-  const sessions = []
-  for await (const session of Session.list()) {
-    if (!session.parentID) sessions.push(session)
+// Persist real session surfaces in an owned profile, then reopen via CLI bootstrap.
+// No ambient history lookup, skip condition or catch-to-null can hide setup errors.
+async function withStoredSession(check: (session: Session.Info) => Promise<void>) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "dax-session-collectors-"))
+  const directory = path.join(root, "project")
+  const previousHome = process.env.DAX_TEST_HOME
+  const previousNotice = process.env.DAX_DISABLE_RUN_NOTICE
+  process.env.DAX_TEST_HOME = path.join(root, "home")
+  process.env.DAX_DISABLE_RUN_NOTICE = "1"
+  try {
+    await fs.mkdir(directory)
+    const session = await Instance.provide({
+      directory,
+      async fn() {
+        const session = await Session.create({ title: "Persisted collector fixture" })
+        const userID = Identifier.ascending("message")
+        const assistantID = Identifier.ascending("message")
+        const created = session.time.created
+        await Session.updateMessage({
+          id: userID,
+          sessionID: session.id,
+          role: "user",
+          time: { created },
+          agent: "build",
+          model: { providerID: "fixture", modelID: "fixture" },
+        })
+        await Session.updateMessage({
+          id: assistantID,
+          parentID: userID,
+          sessionID: session.id,
+          role: "assistant",
+          mode: "build",
+          agent: "build",
+          path: { cwd: directory, root: directory },
+          providerID: "fixture",
+          modelID: "fixture",
+          cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          time: { created: created + 1, completed: created + 3 },
+          finish: "stop",
+        })
+        await Session.updatePart({
+          id: Identifier.ascending("part"),
+          messageID: assistantID,
+          sessionID: session.id,
+          type: "tool",
+          tool: "read",
+          callID: "fixture_read",
+          state: {
+            status: "completed",
+            input: { filePath: "fixture-input.txt" },
+            output: "controlled output",
+            title: "Fixture report",
+            metadata: {},
+            time: { start: created + 2, end: created + 3 },
+            attachments: [
+              {
+                id: Identifier.ascending("part"),
+                messageID: assistantID,
+                sessionID: session.id,
+                type: "file",
+                mime: "text/plain",
+                filename: "fixture-report.txt",
+                url: "data:text/plain;base64,Y29udHJvbGxlZA==",
+              },
+            ],
+          },
+        })
+        return session
+      },
+    })
+    await Instance.disposeAll()
+    await bootstrap(directory, () => check(session))
+  } finally {
+    try {
+      await Instance.disposeAll()
+    } finally {
+      if (previousHome === undefined) delete process.env.DAX_TEST_HOME
+      else process.env.DAX_TEST_HOME = previousHome
+      if (previousNotice === undefined) delete process.env.DAX_DISABLE_RUN_NOTICE
+      else process.env.DAX_DISABLE_RUN_NOTICE = previousNotice
+      await fs.rm(root, { recursive: true, force: true })
+    }
   }
-  sessions.sort((a, b) => b.time.updated - a.time.updated)
-  return sessions[0]?.id ?? null
-}).catch(() => null)
+}
 
 describe("session timeline helpers", () => {
   test("builds meaningful operator-facing timeline rows from session state", () => {
@@ -707,12 +780,21 @@ describe("session timeline helpers", () => {
     ).toEqual(["discovery", "planning", "implementation", "review"])
   })
 
-  test.skipIf(!recentTopLevelSessionID)(
-    "collects a durable session summary from canonical session surfaces",
-    async () => {
-      const summary = await bootstrap(sessionSummaryRepoRoot, async () =>
-        collectSessionShowSummary(recentTopLevelSessionID!),
-      )
+  test("collects a durable session summary from canonical session surfaces", async () => {
+    await withStoredSession(async (session) => {
+      const summary = await collectSessionShowSummary(session.id)
+      expect(summary).toMatchObject({
+        id: session.id,
+        title: session.title,
+        project_id: session.projectID,
+        directory: session.directory,
+        outcome: "completed",
+        lifecycle_state: "completed",
+        artifact_count: 1,
+        approval_count: 0,
+        override_count: 0,
+        timeline_count: 3,
+      })
 
       expect(typeof summary.id).toBe("string")
       expect(typeof summary.title).toBe("string")
@@ -725,17 +807,27 @@ describe("session timeline helpers", () => {
         summary.stage,
       )
       expect(["review_needed", "policy_clean", "verified"]).toContain(summary.trust_posture)
-      expect(["verification_passed", "verification_failed", "verification_incomplete", "verification_degraded"]).toContain(
-        summary.verification_result,
-      )
+      expect([
+        "verification_passed",
+        "verification_failed",
+        "verification_incomplete",
+        "verification_degraded",
+      ]).toContain(summary.verification_result)
       expect(["none", "governed_completed", "completed_ungated", "blocked", "partial", "no_durable_result"]).toContain(
         summary.write_outcome,
       )
       expect(["none", "governed", "blocked", "ungated"]).toContain(summary.write_governance_status)
       expect(["clear", "review_needed", "blocked"]).toContain(summary.audit_posture)
-    },
-    40000,
-  )
+      await Session.remove(session.id)
+      let failure: unknown
+      try {
+        await collectSessionShowSummary(session.id)
+      } catch (error) {
+        failure = error
+      }
+      expect(failure).toBeInstanceOf(Error)
+    })
+  }, 40000)
 
   test("formats a deep inspection surface for a durable session record", () => {
     const rendered = formatSessionInspectSummary({
@@ -826,7 +918,8 @@ describe("session timeline helpers", () => {
             id: "write_governance",
             label: "Write governance",
             status: "pass",
-            summary: "1 retained workspace write artifact recorded with governance evidence for governed project changes.",
+            summary:
+              "1 retained workspace write artifact recorded with governance evidence for governed project changes.",
           },
           {
             id: "approvals",
@@ -858,11 +951,34 @@ describe("session timeline helpers", () => {
     expect(rendered).toContain("Execution completed")
   })
 
-  test.skipIf(!recentTopLevelSessionID)(
-    "collects a durable session inspect surface from canonical session data",
-    async () => {
-      const summary = await bootstrap(sessionSummaryRepoRoot, async () =>
-        collectSessionInspectSummary(recentTopLevelSessionID!),
+  test("collects a durable session inspect surface from canonical session data", async () => {
+    await withStoredSession(async (session) => {
+      const summary = await collectSessionInspectSummary(session.id)
+      expect(summary.summary).toMatchObject({
+        id: session.id,
+        title: session.title,
+        directory: session.directory,
+        outcome: "completed",
+        artifact_count: 1,
+      })
+      expect(summary.timeline.map((row) => row.type)).toEqual([
+        "session_created",
+        "execution_started",
+        "artifact_produced",
+      ])
+      expect(summary.artifacts).toHaveLength(1)
+      expect(summary.artifacts[0]).toMatchObject({
+        kind: "attachment",
+        session_id: session.id,
+        label: "fixture-report.txt",
+        source: "read attachment",
+        reference: "fixture-report.txt",
+      })
+      expect(summary.verification.blocking_factors).not.toContain(
+        "Verification could not be collected for this session.",
+      )
+      expect(summary.audit.next_actions).not.toContain(
+        "Audit evidence could not be collected; retry before relying on this session record.",
       )
 
       expect(summary.type).toBe("session_inspect")
@@ -872,7 +988,14 @@ describe("session timeline helpers", () => {
       expect(Array.isArray(summary.artifacts)).toBe(true)
       expect(summary.audit.session_id).toBe(summary.summary.id)
       expect(summary.verification.session_id).toBe(summary.summary.id)
-    },
-    40000,
-  )
+      await Session.remove(session.id)
+      let failure: unknown
+      try {
+        await collectSessionInspectSummary(session.id)
+      } catch (error) {
+        failure = error
+      }
+      expect(failure).toBeInstanceOf(Error)
+    })
+  }, 40000)
 })

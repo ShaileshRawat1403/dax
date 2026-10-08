@@ -1,7 +1,7 @@
 /**
- * Candidate sprint ledger. Empty records completion of the documented scope,
+ * Sprint ledger. Empty records completion of the documented scope,
  * not absence of every defect or support for every executable binding form.
- * Published main remains eight open until validated integration. See
+ * See
  * docs/tooling/conformance-final-acceptance.md for the scope and producer matrix.
  */
 export const KNOWN_GAPS = Object.freeze({} as const)

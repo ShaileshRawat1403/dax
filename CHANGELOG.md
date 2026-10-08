@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No additional changes after the prepared 2.0.0 candidate.
 
-## [2.0.0] - 2026-10-07
+## [2.0.0] - 2026-10-08
 
 Prepared release candidate; publication and the final release date remain pending.
 
@@ -232,6 +232,9 @@ Prepared release candidate; publication and the final release date remain pendin
   ambient Google authentication selectors before starting a governed run.
 
 ### Fixed
+
+- Session summary and inspection integration tests use isolated persisted
+  fixtures and run on fresh profiles; missing data fails instead of skipping.
 
 - Shell tools, operator commands and command snippets no longer directly inherit
   DAX operator credentials, authenticated API URLs, inline configuration or

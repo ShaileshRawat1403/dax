@@ -1,5 +1,16 @@
 # DAX current ownership and release work
 
+## Authorized 2.0.0 publication — 2026-10-08
+
+The maintainer explicitly authorized Codex to fix the two skipped session
+collector tests, update documentation, integrate main, verify CI, and tag/publish
+2.0.0. This authorization is specific to this release; feature branches and
+review/evidence discipline remain required. The two checks now own persisted
+fixtures, reopen them through the real CLI bootstrap, and assert exact data plus
+missing-record failures. No ambient lookup or catch-to-null skip remains. Final
+source validation, integration and publication are in progress; v1.5.0 and the
+installed binary remain unchanged until those actions succeed.
+
 ## Final release checkpoint — 2026-10-08
 
 Runtime source **4d03493e94e7a8f6f78383bc44c9e610a861035e** passes

@@ -1,5 +1,15 @@
 # DAX vNext Conformance Suite
 
+## Authorized 2.0.0 closeout — 2026-10-08
+
+The original sprint ledger is empty within its documented supported scope. The
+maintainer has authorized final validation, main integration and 2.0.0 publication.
+The two session collector checks now use isolated persisted fixtures instead of
+ambient history and skips. Final gates/CI and publication are in progress; the
+[release checkpoint](../../../../docs/tooling/release-2.0.0-final-checkpoint.md) records source/evidence and
+limits. Unsupported reviewed executable bindings remain denied/backlog. Earlier
+sections preserve historical counts and ownership, not current pending-gap counts.
+
 ## Current candidate — 2026-10-07
 
 The sprint ledger is empty within the documented approved scope, pending final
