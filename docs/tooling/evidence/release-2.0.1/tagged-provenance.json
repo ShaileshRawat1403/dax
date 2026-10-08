@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-10-08T14:10:42.532Z",
+  "release_mode": true,
+  "git": {
+    "commit": "fe911e57415dcfa9d101bd2584b28d2ea3c84694",
+    "branch": "release/2.0.1-validation",
+    "head_tags": [
+      "v2.0.1"
+    ],
+    "expected_tag": "v2.0.1"
+  },
+  "version": {
+    "package": "2.0.1",
+    "changelog": "2.0.1"
+  },
+  "proofs": {
+    "replay": {
+      "path": "artifacts/proof-pack/replay-proof.json"
+    },
+    "policy": {
+      "path": "artifacts/proof-pack/policy-proof.json"
+    },
+    "audit": {
+      "path": "artifacts/proof-pack/audit-proof.json"
+    },
+    "summary": {
+      "path": "artifacts/proof-pack/proof-summary.md"
+    },
+    "deterministic_replay": {
+      "path": "artifacts/determinism-proof.json"
+    }
+  },
+  "artifacts": {
+    "expected": [
+      "dax-darwin-arm64.tar.gz",
+      "dax-darwin-x64.tar.gz",
+      "dax-darwin-x64-baseline.tar.gz",
+      "dax-linux-x64.tar.gz",
+      "dax-linux-x64-baseline.tar.gz",
+      "dax-linux-x64-musl.tar.gz",
+      "dax-linux-x64-baseline-musl.tar.gz",
+      "dax-linux-arm64.tar.gz",
+      "dax-linux-arm64-musl.tar.gz",
+      "dax-windows-x64.zip",
+      "dax-windows-x64-baseline.zip"
+    ],
+    "manifest_path": null,
+    "manifest_version": null,
+    "manifest_generated_at": null,
+    "manifest_assets": []
+  }
+}

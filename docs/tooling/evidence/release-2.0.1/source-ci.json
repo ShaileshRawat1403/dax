@@ -1,0 +1,545 @@
+{
+  "conclusion": "success",
+  "headSha": "fe911e57415dcfa9d101bd2584b28d2ea3c84694",
+  "jobs": [
+    {
+      "completedAt": "2026-10-08T14:04:47Z",
+      "conclusion": "success",
+      "databaseId": 113349734413,
+      "name": "validate (macos-latest)",
+      "startedAt": "2026-10-08T13:58:26Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-08T13:58:29Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-08T13:58:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:34Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-08T13:58:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:37Z",
+          "conclusion": "success",
+          "name": "Setup Bun",
+          "number": 3,
+          "startedAt": "2026-10-08T13:58:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:42Z",
+          "conclusion": "success",
+          "name": "Install ripgrep",
+          "number": 4,
+          "startedAt": "2026-10-08T13:58:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:49Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-08T13:58:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:49Z",
+          "conclusion": "success",
+          "name": "Audit dependencies",
+          "number": 6,
+          "startedAt": "2026-10-08T13:58:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:50Z",
+          "conclusion": "success",
+          "name": "Check repo integrity",
+          "number": 7,
+          "startedAt": "2026-10-08T13:58:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:50Z",
+          "conclusion": "success",
+          "name": "Guard frozen legacy roots",
+          "number": 8,
+          "startedAt": "2026-10-08T13:58:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:00Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 9,
+          "startedAt": "2026-10-08T13:58:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:10Z",
+          "conclusion": "success",
+          "name": "Cache Rust build",
+          "number": 10,
+          "startedAt": "2026-10-08T13:59:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:51Z",
+          "conclusion": "success",
+          "name": "Typecheck",
+          "number": 11,
+          "startedAt": "2026-10-08T13:59:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:00:55Z",
+          "conclusion": "success",
+          "name": "Lint",
+          "number": 12,
+          "startedAt": "2026-10-08T13:59:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:23Z",
+          "conclusion": "success",
+          "name": "Test",
+          "number": 13,
+          "startedAt": "2026-10-08T14:00:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:25Z",
+          "conclusion": "success",
+          "name": "Smoke evals",
+          "number": 14,
+          "startedAt": "2026-10-08T14:04:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:26Z",
+          "conclusion": "success",
+          "name": "Rust fmt",
+          "number": 15,
+          "startedAt": "2026-10-08T14:04:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:31Z",
+          "conclusion": "success",
+          "name": "Rust clippy",
+          "number": 16,
+          "startedAt": "2026-10-08T14:04:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:38Z",
+          "conclusion": "success",
+          "name": "Rust test",
+          "number": 17,
+          "startedAt": "2026-10-08T14:04:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:39Z",
+          "conclusion": "success",
+          "name": "Post Cache Rust build",
+          "number": 32,
+          "startedAt": "2026-10-08T14:04:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:39Z",
+          "conclusion": "success",
+          "name": "Post Setup Bun",
+          "number": 33,
+          "startedAt": "2026-10-08T14:04:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:40Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 34,
+          "startedAt": "2026-10-08T14:04:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:04:45Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 35,
+          "startedAt": "2026-10-08T14:04:40Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37788614213/job/113349734413"
+    },
+    {
+      "completedAt": "2026-10-08T14:02:02Z",
+      "conclusion": "success",
+      "databaseId": 113349734763,
+      "name": "validate (ubuntu-latest)",
+      "startedAt": "2026-10-08T13:58:19Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-08T13:58:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-08T13:58:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:25Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-08T13:58:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:27Z",
+          "conclusion": "success",
+          "name": "Setup Bun",
+          "number": 3,
+          "startedAt": "2026-10-08T13:58:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:32Z",
+          "conclusion": "success",
+          "name": "Install ripgrep",
+          "number": 4,
+          "startedAt": "2026-10-08T13:58:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:34Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-08T13:58:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:34Z",
+          "conclusion": "success",
+          "name": "Audit dependencies",
+          "number": 6,
+          "startedAt": "2026-10-08T13:58:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:35Z",
+          "conclusion": "success",
+          "name": "Check repo integrity",
+          "number": 7,
+          "startedAt": "2026-10-08T13:58:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:35Z",
+          "conclusion": "success",
+          "name": "Guard frozen legacy roots",
+          "number": 8,
+          "startedAt": "2026-10-08T13:58:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:35Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 9,
+          "startedAt": "2026-10-08T13:58:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:42Z",
+          "conclusion": "success",
+          "name": "Cache Rust build",
+          "number": 10,
+          "startedAt": "2026-10-08T13:58:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:12Z",
+          "conclusion": "success",
+          "name": "Typecheck",
+          "number": 11,
+          "startedAt": "2026-10-08T13:58:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:53Z",
+          "conclusion": "success",
+          "name": "Lint",
+          "number": 12,
+          "startedAt": "2026-10-08T13:59:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:49Z",
+          "conclusion": "success",
+          "name": "Test",
+          "number": 13,
+          "startedAt": "2026-10-08T13:59:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:49Z",
+          "conclusion": "success",
+          "name": "Smoke evals",
+          "number": 14,
+          "startedAt": "2026-10-08T14:01:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:50Z",
+          "conclusion": "success",
+          "name": "Rust fmt",
+          "number": 15,
+          "startedAt": "2026-10-08T14:01:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:55Z",
+          "conclusion": "success",
+          "name": "Rust clippy",
+          "number": 16,
+          "startedAt": "2026-10-08T14:01:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:59Z",
+          "conclusion": "success",
+          "name": "Rust test",
+          "number": 17,
+          "startedAt": "2026-10-08T14:01:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:59Z",
+          "conclusion": "success",
+          "name": "Post Cache Rust build",
+          "number": 32,
+          "startedAt": "2026-10-08T14:01:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:59Z",
+          "conclusion": "success",
+          "name": "Post Setup Bun",
+          "number": 33,
+          "startedAt": "2026-10-08T14:01:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:59Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 34,
+          "startedAt": "2026-10-08T14:01:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:59Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 35,
+          "startedAt": "2026-10-08T14:01:59Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37788614213/job/113349734763"
+    },
+    {
+      "completedAt": "2026-10-08T14:06:47Z",
+      "conclusion": "success",
+      "databaseId": 113349735100,
+      "name": "validate (windows-latest)",
+      "startedAt": "2026-10-08T13:58:20Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-08T13:58:23Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-08T13:58:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:30Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-08T13:58:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:34Z",
+          "conclusion": "success",
+          "name": "Setup Bun",
+          "number": 3,
+          "startedAt": "2026-10-08T13:58:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:58:50Z",
+          "conclusion": "success",
+          "name": "Install ripgrep",
+          "number": 4,
+          "startedAt": "2026-10-08T13:58:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:23Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-08T13:58:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:23Z",
+          "conclusion": "success",
+          "name": "Audit dependencies",
+          "number": 6,
+          "startedAt": "2026-10-08T13:59:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:24Z",
+          "conclusion": "success",
+          "name": "Check repo integrity",
+          "number": 7,
+          "startedAt": "2026-10-08T13:59:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:24Z",
+          "conclusion": "skipped",
+          "name": "Guard frozen legacy roots",
+          "number": 8,
+          "startedAt": "2026-10-08T13:59:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:43Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 9,
+          "startedAt": "2026-10-08T13:59:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T13:59:54Z",
+          "conclusion": "success",
+          "name": "Cache Rust build",
+          "number": 10,
+          "startedAt": "2026-10-08T13:59:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:00:31Z",
+          "conclusion": "success",
+          "name": "Typecheck",
+          "number": 11,
+          "startedAt": "2026-10-08T13:59:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:01:33Z",
+          "conclusion": "success",
+          "name": "Lint",
+          "number": 12,
+          "startedAt": "2026-10-08T14:00:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:29Z",
+          "conclusion": "success",
+          "name": "Test",
+          "number": 13,
+          "startedAt": "2026-10-08T14:01:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:30Z",
+          "conclusion": "success",
+          "name": "Smoke evals",
+          "number": 14,
+          "startedAt": "2026-10-08T14:06:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:32Z",
+          "conclusion": "success",
+          "name": "Rust fmt",
+          "number": 15,
+          "startedAt": "2026-10-08T14:06:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:35Z",
+          "conclusion": "success",
+          "name": "Rust clippy",
+          "number": 16,
+          "startedAt": "2026-10-08T14:06:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:42Z",
+          "conclusion": "success",
+          "name": "Rust test",
+          "number": 17,
+          "startedAt": "2026-10-08T14:06:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:42Z",
+          "conclusion": "success",
+          "name": "Post Cache Rust build",
+          "number": 32,
+          "startedAt": "2026-10-08T14:06:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:43Z",
+          "conclusion": "success",
+          "name": "Post Setup Bun",
+          "number": 33,
+          "startedAt": "2026-10-08T14:06:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:45Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 34,
+          "startedAt": "2026-10-08T14:06:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-08T14:06:45Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 35,
+          "startedAt": "2026-10-08T14:06:45Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37788614213/job/113349735100"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37788614213"
+}
