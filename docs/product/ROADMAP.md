@@ -13,6 +13,26 @@ tags:
 
 # DAX Roadmap
 
+## Published 2.0.0 — 2026-10-08
+
+[DAX 2.0.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.0) is
+published at source/tag **87029cbd57dd16c330f677b8cc699c3404ecd45f**.
+[Main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37717923118) and
+[release gates/build/publication](https://github.com/ShaileshRawat1403/dax/actions/runs/37718917919)
+passed. Main incorporated the reviewed stack by fast-forward. The original
+sprint ledger has zero open entries within the documented supported scope.
+The former session collector skips execute using owned persisted fixtures:
+local macOS gates pass 2,401 tests with zero skips/failures; existing platform
+exclusions are unchanged. All eleven published archive hashes match their
+manifest/checksums, and a real disposable GitHub install reports 2.0.0.
+[Publication evidence](../tooling/evidence/release-2.0.0/published/README.md) records inventory, source and install results.
+
+Reviewed plugin/local-MCP/worker/verifier executable bindings remain unsupported
+and denied. Build-host-only Rust helpers, unknown historical coverage, same-user
+access and bounded review limits remain explicit; no error-free claim is made.
+v1.5.0/tag/assets and the operator-installed binary remain unchanged. Earlier
+sections below are historical checkpoints, not current gap/release status.
+
 ## Authorized 2.0.0 closeout — 2026-10-08
 
 The original sprint ledger is empty within its documented supported scope. The

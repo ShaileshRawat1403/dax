@@ -1,5 +1,12 @@
 # DAX 2.0.0 publication handoff
 
+## Completed — 2026-10-08
+
+The maintainer-authorized main integration, main CI, tagged release workflow and
+actual published archive/installer verification completed. [Receipt](evidence/release-2.0.0/published/README.md)
+pins public source 87029cb, all eleven hashes and the unchanged operator binary.
+Earlier action instructions below describe preparation and are historical.
+
 Prepared runtime/tag source: **`87029cbd57dd16c330f677b8cc699c3404ecd45f`**,
 published on `release/2.0.0-candidate`. Integrate the separate
 `docs/release-2.0.0-final-evidence` receipt branch to carry the final records too.

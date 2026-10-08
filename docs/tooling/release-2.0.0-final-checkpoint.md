@@ -1,5 +1,13 @@
 # Final DAX 2.0.0 release checkpoint
 
+## Publication completed — 2026-10-08
+
+[v2.0.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.0) is published
+at 87029cbd57dd16c330f677b8cc699c3404ecd45f. Main CI 37717923118 and release
+CI 37718917919 passed. All eleven actual downloaded archives match published
+checksums; the disposable installer reports 2.0.0. [Published evidence](evidence/release-2.0.0/published/README.md)
+records the final bytes. Earlier preparation/action sections below are historical.
+
 Receipt finalized 2026-10-08. Runtime and intended tag source:
 **`87029cbd57dd16c330f677b8cc699c3404ecd45f`** on
 `release/2.0.0-candidate`. This supersedes c064124,2a75a43 and4d03493 prepared

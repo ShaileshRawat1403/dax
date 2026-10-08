@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No additional changes after the prepared 2.0.0 candidate.
+No additional changes after 2.0.0.
 
 ## [2.0.0] - 2026-10-08
 
-Prepared release candidate; publication and the final release date remain pending.
+Published 2026-10-08: [DAX 2.0.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.0).
 
 ### Migration
 

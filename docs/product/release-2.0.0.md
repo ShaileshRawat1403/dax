@@ -1,8 +1,10 @@
-# DAX 2.0.0 release candidate
+# DAX 2.0.0 release
 
-Prepared 2026-10-07. **Not published.** v1.5.0, its assets and the installed binary
-remain unchanged until a separately authorized release. This is a major version
-because HTTP operator access, OAuth credential use and journal compatibility change.
+Published 2026-10-08 at [v2.0.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.0),
+source **87029cbd57dd16c330f677b8cc699c3404ecd45f**. Main and release CI passed;
+all eleven published archives and an actual disposable download were verified.
+v1.5.0 assets remain unchanged. This is a major version because HTTP operator
+access, OAuth credential use and journal compatibility change.
 
 ## What ships
 
@@ -17,7 +19,7 @@ because HTTP operator access, OAuth credential use and journal compatibility cha
 - Authority identity, graph, verification, background-scan lifetime, dependency,
   OAuth issuer and checkout-local typecheck corrections.
 
-The original sprint ledger is empty in the candidate's documented scope. This
+The original sprint ledger is empty within this release's documented scope. This
 is not an error-free claim, an independent security audit or support for every
 executable binding form.
 
@@ -59,12 +61,9 @@ cross-compiled sidecar coverage for every target archive.
 
 ## Validation and publication
 
-The pre-release runtime corrections require exact-SHA code review and all-platform
-CI, in addition to full gates and packaging/installer checks. See
-[the final corrective validation record](../tooling/release-2.0.0-final-checkpoint.md).
-
-The maintainer integrates the final candidate, requires post-integration CI, then
-publishes the matching version tag only after verifying its assets. Installer
-validation uses disposable destinations; it never replaces the operator's binary.
-Merged branch cleanup follows published-main ancestry checks and preserves dirty
-or unrelated worktrees and needed ignored evidence/dependencies.
+[Final validation](../tooling/release-2.0.0-final-checkpoint.md) and
+[published-byte evidence](../tooling/evidence/release-2.0.0/published/README.md)
+record source CI, post-integration main CI, release workflow, all eleven archive
+hashes and an actual disposable GitHub install. The operator's existing binary
+was not replaced. Clean merged-branch cleanup preserves dirty/frozen worktrees,
+unmerged refs, user configuration, caches and needed ignored evidence.

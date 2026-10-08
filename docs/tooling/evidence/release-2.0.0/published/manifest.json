@@ -1,0 +1,72 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-10-08T02:43:36.074Z",
+  "assets": [
+    {
+      "filename": "dax-darwin-arm64.tar.gz",
+      "platform": "darwin",
+      "arch": "arm64",
+      "sha256": "7ee652b2940611579868133250411478678ab9801d5d012c8f01ed6e243019e2"
+    },
+    {
+      "filename": "dax-darwin-x64.tar.gz",
+      "platform": "darwin",
+      "arch": "x64",
+      "sha256": "4aa0567dec977dff53bef8abc171e740cda85c0f4a47fea14a03a0b90223d4be"
+    },
+    {
+      "filename": "dax-darwin-x64-baseline.tar.gz",
+      "platform": "darwin",
+      "arch": "x64",
+      "sha256": "a2f7a960d0fbf9c4b60f5be65684b4e0f273e34f8832f6f45a55224e19eb1f45"
+    },
+    {
+      "filename": "dax-linux-x64.tar.gz",
+      "platform": "linux",
+      "arch": "x64",
+      "sha256": "0ff2dd5ca9c6b635fc33d807d8ccdfd532278d563aee3996f8d9b9c13af6f22f"
+    },
+    {
+      "filename": "dax-linux-x64-baseline.tar.gz",
+      "platform": "linux",
+      "arch": "x64",
+      "sha256": "f0f63ada1803bddbc33a9b2428c1c8c414f435f2781b683b86b54887fd1431c2"
+    },
+    {
+      "filename": "dax-linux-x64-musl.tar.gz",
+      "platform": "linux",
+      "arch": "x64",
+      "sha256": "18b833561f1d34bec4360c32d8f084524cc64f4c44f159e39ccacdb7e60e98d9"
+    },
+    {
+      "filename": "dax-linux-x64-baseline-musl.tar.gz",
+      "platform": "linux",
+      "arch": "x64",
+      "sha256": "d870ba284e35abb58378ae5301b91800bd7f3fcd737572d84719147cc106ad54"
+    },
+    {
+      "filename": "dax-linux-arm64.tar.gz",
+      "platform": "linux",
+      "arch": "arm64",
+      "sha256": "1ff7c37f39f3292178a3340b8de4533a5f58fde756e9d11089cdfa4aae677d5e"
+    },
+    {
+      "filename": "dax-linux-arm64-musl.tar.gz",
+      "platform": "linux",
+      "arch": "arm64",
+      "sha256": "ee53695504b2c2fef107231714becfe95d605e7bf09069932dfdfe1bb5dd8400"
+    },
+    {
+      "filename": "dax-windows-x64.zip",
+      "platform": "windows",
+      "arch": "x64",
+      "sha256": "08dc5dd49e43bd7db0d0d87a713c6a3497d83cf6e49d8e98bbf6d33f9687547e"
+    },
+    {
+      "filename": "dax-windows-x64-baseline.zip",
+      "platform": "windows",
+      "arch": "x64",
+      "sha256": "da0441a9cddfdf8a50f2fb5c5ff03d7951402550aac3121045f441e2ef223bf4"
+    }
+  ]
+}
