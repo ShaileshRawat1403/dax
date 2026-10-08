@@ -5,7 +5,7 @@
 2.0.0 is published and its tag remains immutable. Final docs-main CI 37720257864
 passed Bun checks but found a Windows Rust concurrent-append AccessDenied 5.
 The exact failed operation/OS handle is not established by the trace. A bounded
-lock-only follow-up and deterministic delete-pending controls are under validation;
+lock-only follow-up and deterministic access-denied controls are under validation;
 ledger IO outside lock acquisition is unchanged. The original scoped ledger stays
 empty; this is an additional reliability issue, not a rewritten release claim.
 [Retained failure](tooling/evidence/windows-ledger-contention/README.md) is preserved.

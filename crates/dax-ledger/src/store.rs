@@ -238,60 +238,35 @@ mod tests {
     }
 
     #[cfg(windows)]
-    fn mark_delete_pending(path: &Path) -> std::io::Result<()> {
-        use std::os::windows::ffi::OsStrExt;
-        #[link(name = "kernel32")]
-        extern "system" {
-            fn DeleteFileW(path: *const u16) -> i32;
-        }
-        let wide: Vec<u16> = path
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-        // SAFETY: wide owns a valid NUL-terminated UTF-16 path for this call.
-        // Use classic Win32 semantics, not std's optional POSIX-style unlink.
-        if unsafe { DeleteFileW(wide.as_ptr()) } == 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        Ok(())
-    }
-
-    #[cfg(windows)]
     #[test]
-    fn delete_pending_lock_retries_only_after_the_owner_handle_closes() {
-        use std::os::windows::fs::OpenOptionsExt;
+    fn transient_access_denied_lock_waits_for_external_release() {
+        // A directory at the lock name produces a real Windows access-denied
+        // error. Only this fixture's external owner removes the obstruction;
+        // lock acquisition itself must never delete or steal an existing path.
         let dir =
-            std::env::temp_dir().join(format!("dax-ledger-delete-pending-{}", std::process::id()));
+            std::env::temp_dir().join(format!("dax-ledger-access-denied-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("ledger.jsonl");
         let lock = lock_path(&path);
-        let handle = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .share_mode(7)
-            .open(&lock)
-            .unwrap();
-        mark_delete_pending(&lock).unwrap();
-        // This is the exact baseline atomic-create operation, not a fake error.
+        fs::create_dir(&lock).unwrap();
         let error = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&lock)
             .unwrap_err();
         assert_eq!(error.raw_os_error(), Some(5));
-        let mut held = Some(handle);
         let mut waits = 0;
         let acquired = LedgerLock::acquire_with_wait(&path, Duration::from_secs(1), |_| {
             waits += 1;
-            drop(held.take());
+            assert!(
+                lock.is_dir(),
+                "acquisition must leave the obstruction intact"
+            );
+            fs::remove_dir(&lock).unwrap();
         })
-        .expect("must wait for delete-pending lock, then acquire it");
-        assert!(
-            waits > 0,
-            "baseline rejection must trigger a real contention wait"
-        );
-        assert!(lock.exists());
+        .expect("must wait for the external owner, then acquire the lock");
+        assert_eq!(waits, 1, "must traverse the access-denied retry branch");
+        assert!(lock.is_file());
         assert!(!path.exists());
         drop(acquired);
         assert!(!lock.exists());
@@ -300,20 +275,15 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn persistent_delete_pending_denial_preserves_the_original_error() {
-        use std::os::windows::fs::OpenOptionsExt;
-        let dir =
-            std::env::temp_dir().join(format!("dax-ledger-delete-denied-{}", std::process::id()));
+    fn persistent_access_denied_preserves_error_and_obstruction() {
+        let dir = std::env::temp_dir().join(format!(
+            "dax-ledger-persistent-denial-{}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("ledger.jsonl");
         let lock = lock_path(&path);
-        let handle = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .share_mode(7)
-            .open(&lock)
-            .unwrap();
-        mark_delete_pending(&lock).unwrap();
+        fs::create_dir(&lock).unwrap();
         let error =
             LedgerLock::acquire_with_wait(&path, Duration::ZERO, |_| panic!("deadline must fail"))
                 .err()
@@ -322,8 +292,8 @@ mod tests {
             LedgerError::Io(error) => assert_eq!(error.raw_os_error(), Some(5)),
             _ => panic!("expected IO error"),
         }
+        assert!(lock.is_dir());
         assert!(!path.exists());
-        drop(handle);
         fs::remove_dir_all(dir).unwrap();
     }
 
