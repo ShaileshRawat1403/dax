@@ -1,5 +1,18 @@
 # DAX current ownership and release work
 
+## Final release checkpoint — 2026-10-08
+
+Runtime source **4d03493e94e7a8f6f78383bc44c9e610a861035e** passes
+Ubuntu/macOS/Windows CI and fresh clean tagged-mode gates: 2,399 tests, two skips,
+zero failures. [Final source, rebuilt artifacts and publication handoff](tooling/release-2.0.0-final-checkpoint.md)
+record bounded separate-agent acceptance and retained failures. The MCP fixture
+correction isolates slow setup from its unchanged authority-test deadline; the
+underlying Windows delay remains unexplained. The candidate sprint ledger is empty
+within documented scope, not an error-free or OS-isolation claim. Main integration,
+post-merge CI and publication remain pending under the maintainer merge rule. Main,
+v1.5.0, release assets and installed binary are unchanged. Dirty/unmerged worktrees
+remain preserved. Earlier checkpoints below are historical.
+
 ## Release fixture reliability follow-up — 2026-10-07
 
 The final receipt's Windows CI exposed a project-setup/test-deadline race before

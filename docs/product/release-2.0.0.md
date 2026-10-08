@@ -61,7 +61,7 @@ cross-compiled sidecar coverage for every target archive.
 
 The pre-release runtime corrections require exact-SHA code review and all-platform
 CI, in addition to full gates and packaging/installer checks. See
-[the final corrective validation record](../tooling/release-2.0.0-operator-env-validation.md).
+[the final corrective validation record](../tooling/release-2.0.0-final-checkpoint.md).
 
 The maintainer integrates the final candidate, requires post-integration CI, then
 publishes the matching version tag only after verifying its assets. Installer

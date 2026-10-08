@@ -1,0 +1,13 @@
+{
+  "dax-darwin-arm64": "6e2eef23cb2355f21526f966e7f4488e6f65b145898f55133abe7b7b1bd99a72",
+  "dax-darwin-x64": "bf7fb0f11b12f1a04be1190c04b741f9703c49f1d1e8a2c2530f69cc99467459",
+  "dax-darwin-x64-baseline": "bf7fb0f11b12f1a04be1190c04b741f9703c49f1d1e8a2c2530f69cc99467459",
+  "dax-linux-x64": "5b1bb61cf0b4307e80364bb972789b844f4a8c450325f53ea332c6064ea9b3ab",
+  "dax-linux-x64-baseline": "5b1bb61cf0b4307e80364bb972789b844f4a8c450325f53ea332c6064ea9b3ab",
+  "dax-linux-x64-musl": "082ad7d686ca8736caf12475f1c2720593c80180d51beba8e02622edbad1a91a",
+  "dax-linux-x64-baseline-musl": "082ad7d686ca8736caf12475f1c2720593c80180d51beba8e02622edbad1a91a",
+  "dax-linux-arm64": "b4850b0471b3e8dea6f88704d7e9734076468e5d25f7fbc9a086b3c6e8835e8a",
+  "dax-linux-arm64-musl": "257ac5237c4f1c2b9b642cbf275a8afad837c1b6c86bede35310fca46d23c97d",
+  "dax-windows-x64": "31c5bbff2a7d2dc4cdb002b38539ad8e7b3b726be5c787247ca9368f8febaab3",
+  "dax-windows-x64-baseline": "31c5bbff2a7d2dc4cdb002b38539ad8e7b3b726be5c787247ca9368f8febaab3"
+}

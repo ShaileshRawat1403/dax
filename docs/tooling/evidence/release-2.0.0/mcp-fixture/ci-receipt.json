@@ -1,0 +1,22 @@
+{
+  "source": "4d03493e94e7a8f6f78383bc44c9e610a861035e",
+  "run_id": 37656018792,
+  "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37656018792",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "validate (macos-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (windows-latest)",
+      "conclusion": "success"
+    }
+  ],
+  "earlier_failed_receipt_run": 37651221741,
+  "limits": "Windows setup-delay cause remains unestablished. Project-only setup has20s budget; authority scenario retains5s deadline."
+}

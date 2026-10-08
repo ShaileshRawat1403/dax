@@ -1,18 +1,18 @@
 # DAX 2.0.0 publication handoff
 
-Prepared runtime/tag source: **`2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1`**,
+Prepared runtime/tag source: **`4d03493e94e7a8f6f78383bc44c9e610a861035e`**,
 published on `release/2.0.0-candidate`. Integrate the separate
 `docs/release-2.0.0-final-evidence` receipt branch to carry the final records too.
 That receipt is not the binary source. No public v2.0.0 tag exists yet.
 
 ## Completed preparation
 
-[Exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37649534987)
+[Exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37656018792)
 is green on Ubuntu, macOS and Windows. Fresh frozen Bun 1.4.0 tagged release-mode
 gates pass 2,399 tests, with 2 existing skips and no failures. Bounded separate-agent
 review accepted credential filtering, malformed request handling and the CMD quote
 correction. Eleven canonical archives, member hashes and disposable installer/
-checksum refusal are verified; [the final record](release-2.0.0-operator-env-validation.md)
+checksum refusal are verified; [the final record](release-2.0.0-final-checkpoint.md)
 retains failures as well as successes. The candidate sprint ledger is empty within
 its documented scope, not a promise of no defects or every executor binding form.
 
@@ -42,7 +42,7 @@ push was performed as part of preparation.
    dependency caches and needed ignored evidence. No binary replacement is implied.
 
 Prepared archives are preserved in the owned dax-patched-deps-validation worktree
-at `artifacts/release-2.0.0-2a75a43/`. Retain them before retiring that checkout.
+at `artifacts/release-2.0.0-4d03493/`. Retain them before retiring that checkout.
 v1.5.0, its release assets and the operator-installed binary remain unchanged.
 
 ## Public limits that stay explicit

@@ -1,0 +1,118 @@
+{
+  "source": "4d03493e94e7a8f6f78383bc44c9e610a861035e",
+  "version": "2.0.0",
+  "inventory": [
+    {
+      "file": "dax-darwin-arm64.tar.gz",
+      "sha256": "ded530f922d8483c742265c577ac131250a3f8eba8d519ca4a8e7907425b9fd0",
+      "members": [
+        "._dax",
+        "dax",
+        "._dax-core",
+        "dax-core",
+        "._dax-policy",
+        "dax-policy",
+        "._dax-audit",
+        "dax-audit",
+        "._dax-ledger",
+        "dax-ledger",
+        "._dax-indexer",
+        "dax-indexer"
+      ]
+    },
+    {
+      "file": "dax-darwin-x64.tar.gz",
+      "sha256": "e1330d9766cdc601a52558a70b6e7a4f27488edb9d884cdbd2ab03bec7e79441",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-darwin-x64-baseline.tar.gz",
+      "sha256": "7a9e3004d49b5ba67e289460bd6f75bd2da05af3739bf510e8cd15dc80d60c22",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-x64.tar.gz",
+      "sha256": "7d0fc8b089dc6bb40d688289f23d3ffb42188dded4e6bc1c35393e8151a75d1b",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-x64-baseline.tar.gz",
+      "sha256": "2978e93cfcd83e0dabcb81b37330795c5fe34e22283d4966a4623bf484736bb7",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-x64-musl.tar.gz",
+      "sha256": "1ba37bca2deca80f88914a7e06e39525c7ffcaa87f6462f9eab731cd30697e47",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-x64-baseline-musl.tar.gz",
+      "sha256": "fa78e053c069b9f1d6d14d3d761ddb81210db890aa1553b1e72b26f3ffa0ca79",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-arm64.tar.gz",
+      "sha256": "43a1e0a97ced13bc5d544e15d565e86e661c9c170f9292df16ef608a1db52aee",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-linux-arm64-musl.tar.gz",
+      "sha256": "20ee0775aa603fe5cf8b533e52607c93252a8712a4636e652e21dec9b19c9564",
+      "members": [
+        "._dax",
+        "dax"
+      ]
+    },
+    {
+      "file": "dax-windows-x64.zip",
+      "sha256": "417d7e13b0a9d60852ef51ef0368cebdf4d9850042d41c42e685225a6111594c",
+      "members": [
+        "dax.exe"
+      ]
+    },
+    {
+      "file": "dax-windows-x64-baseline.zip",
+      "sha256": "721085b0f2a93401b9f8372cddf3de105cada99bbb9ac289c31833e37543a96f",
+      "members": [
+        "dax.exe"
+      ]
+    }
+  ],
+  "installer_exit": 0,
+  "negative_exit": 1,
+  "old_install_preserved": true,
+  "installed": [
+    "dax",
+    "dax-acp",
+    "dax-core",
+    "dax-policy",
+    "dax-audit",
+    "dax-ledger",
+    "dax-indexer"
+  ],
+  "core_proof_exit": 0,
+  "fixture_downloads_only": true,
+  "installed_binary_sha256": "6e2eef23cb2355f21526f966e7f4488e6f65b145898f55133abe7b7b1bd99a72",
+  "temporary_destination": "/private/tmp/dax-v2-install-f213vcg8/installed"
+}

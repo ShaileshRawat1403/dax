@@ -1,4 +1,9 @@
-# Final 2.0.0 operator-environment correction
+# Earlier 2.0.0 operator-environment correction
+
+[The final 4d03493 checkpoint](release-2.0.0-final-checkpoint.md) supersedes this
+prepared source. Sections below preserve the original correction and later
+fixture failure; the fixture correction now passes exact-source all-platform CI.
+The underlying Windows setup-delay cause remains unestablished.
 
 ## Subsequent receipt CI failure — preparation reopened
 
