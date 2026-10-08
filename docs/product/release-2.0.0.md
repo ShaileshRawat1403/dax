@@ -67,3 +67,13 @@ record source CI, post-integration main CI, release workflow, all eleven archive
 hashes and an actual disposable GitHub install. The operator's existing binary
 was not replaced. Clean merged-branch cleanup preserves dirty/frozen worktrees,
 unmerged refs, user configuration, caches and needed ignored evidence.
+
+## Post-publication Windows reliability follow-up
+
+A later main-CI run exposed native ledger append AccessDenied during concurrent
+appends on Windows. The failed operation and OS handle remain unidentified.
+Bounded lock-acquisition hardening is tracked separately in
+[the current status](../DAX_STATUS.md) and
+[retained evidence](../tooling/evidence/windows-ledger-contention/README.md).
+It is Unreleased and is not part of the immutable v2.0.0 tag or assets. It never
+steals an existing lock or converts persistent denial into permission to write.

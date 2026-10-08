@@ -2,13 +2,23 @@
 
 ## Windows native ledger follow-up — 2026-10-08
 
-2.0.0 is published and its tag remains immutable. Final docs-main CI 37720257864
-passed Bun checks but found a Windows Rust concurrent-append AccessDenied 5.
-The exact failed operation/OS handle is not established by the trace. A bounded
-lock-only follow-up and deterministic access-denied controls are under validation;
-ledger IO outside lock acquisition is unchanged. The original scoped ledger stays
-empty; this is an additional reliability issue, not a rewritten release claim.
-[Retained failure](tooling/evidence/windows-ledger-contention/README.md) is preserved.
+2.0.0 is published and its tag remains immutable. Final docs-main CI
+[37720257864](https://github.com/ShaileshRawat1403/dax/actions/runs/37720257864)
+passed Bun checks but found Windows native ledger concurrent-append AccessDenied 5.
+The exact failed operation/OS handle is not established by the trace.
+
+Unreleased bounded lock-acquisition hardening at
+**7d8460afd46f7c0bef2cb3a7c6a6636c0d064e4c** passed
+[exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37723862499)
+on Ubuntu, macOS and Windows, including the real concurrency test and deterministic
+Windows access-denied controls. Full local Bun 1.4.0 gates pass 2,401 tests with
+zero skips/failures. Ledger IO outside lock acquisition is unchanged; persistent
+denial preserves its error and no lock is stolen. Bounded separate-agent review
+accepted this error handling, not an established cause of the original intermittent
+failure. The original scoped ledger stays empty. This follow-up is not part of the
+published 2.0.0 binaries; a future patch requires a new immutable release.
+[Retained failures, successful CI and local logs](tooling/evidence/windows-ledger-contention/README.md)
+keep the distinction explicit.
 
 ## Published 2.0.0 — 2026-10-08
 

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Windows native ledger lock acquisition handles bounded delete-pending/sharing
   contention without stealing locks, suppressing ledger IO errors or treating
-  denied access as permission to write. Publication follows validation.
+  denied access as permission to write. This is not in the published 2.0.0 tag.
 
 ## [2.0.0] - 2026-10-08
 
