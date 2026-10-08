@@ -1,5 +1,16 @@
 # DAX current ownership and release work
 
+## Local installation — 2026-10-08
+
+The maintainer-authorized local upgrade replaced the PATH-resolved 1.5.0
+executable with the verified published **2.0.0** binary. A fresh interactive zsh
+resolves `/Users/ananyalayek/.local/bin/dax` and reports 2.0.0. The temporary
+old-binary rollback link was removed after successful verification; configuration,
+credentials, sessions and retained build/evidence archives were not removed.
+[Installation receipt](tooling/evidence/release-2.0.0/published/local-installation.json)
+pins the public source and old/new executable hashes. The Windows hardening below
+is Unreleased and is not included in this installed public binary.
+
 ## Windows native ledger follow-up — 2026-10-08
 
 2.0.0 is published and its tag remains immutable. Final docs-main CI
@@ -37,7 +48,7 @@ manifest/checksums, and a real disposable GitHub install reports 2.0.0.
 Reviewed plugin/local-MCP/worker/verifier executable bindings remain unsupported
 and denied. Build-host-only Rust helpers, unknown historical coverage, same-user
 access and bounded review limits remain explicit; no error-free claim is made.
-v1.5.0/tag/assets and the operator-installed binary remain unchanged. Earlier
+v1.5.0/tag/assets remain unchanged. The local binary upgrade is recorded above. Earlier
 sections below are historical checkpoints, not current gap/release status.
 
 ## Final source with session fixtures — 2026-10-08

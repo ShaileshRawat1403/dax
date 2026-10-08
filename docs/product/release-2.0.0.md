@@ -64,8 +64,9 @@ cross-compiled sidecar coverage for every target archive.
 [Final validation](../tooling/release-2.0.0-final-checkpoint.md) and
 [published-byte evidence](../tooling/evidence/release-2.0.0/published/README.md)
 record source CI, post-integration main CI, release workflow, all eleven archive
-hashes and an actual disposable GitHub install. The operator's existing binary
-was not replaced. Clean merged-branch cleanup preserves dirty/frozen worktrees,
+hashes and an actual disposable GitHub install. The initial publication did not replace the operator binary. A later authorized
+[local installation](../tooling/evidence/release-2.0.0/published/local-installation.json)
+now resolves to the verified public 2.0.0 executable. Clean merged-branch cleanup preserves dirty/frozen worktrees,
 unmerged refs, user configuration, caches and needed ignored evidence.
 
 ## Post-publication Windows reliability follow-up

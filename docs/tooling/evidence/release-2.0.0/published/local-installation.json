@@ -1,0 +1,12 @@
+{
+  "release": "v2.0.0",
+  "source": "87029cbd57dd16c330f677b8cc699c3404ecd45f",
+  "path": "/Users/ananyalayek/.local/bin/dax",
+  "previous_version": "1.5.0",
+  "previous_sha256": "5671509d2f18e6d8316fee9bd7df34be96dd409ed628e9b6f5541d1b4e159fb0",
+  "installed_version": "2.0.0",
+  "installed_sha256": "44d68af2676b9f9290eda1bbaf620707657cd217393fa3c0fa3e5b24f152fb39",
+  "fresh_zsh": "/Users/ananyalayek/.local/bin/dax\n2.0.0",
+  "previous_runtime_removed": true,
+  "state_and_credentials_untouched": true
+}
