@@ -1,15 +1,15 @@
 # DAX 2.0.0 publication handoff
 
-Prepared runtime/tag source: **`4d03493e94e7a8f6f78383bc44c9e610a861035e`**,
+Prepared runtime/tag source: **`87029cbd57dd16c330f677b8cc699c3404ecd45f`**,
 published on `release/2.0.0-candidate`. Integrate the separate
 `docs/release-2.0.0-final-evidence` receipt branch to carry the final records too.
 That receipt is not the binary source. No public v2.0.0 tag exists yet.
 
 ## Completed preparation
 
-[Exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37656018792)
+[Exact-source CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37716643300)
 is green on Ubuntu, macOS and Windows. Fresh frozen Bun 1.4.0 tagged release-mode
-gates pass 2,399 tests, with 2 existing skips and no failures. Bounded separate-agent
+gates pass 2,401 tests on macOS, with zero skips and no failures. Bounded separate-agent
 review accepted credential filtering, malformed request handling and the CMD quote
 correction. Eleven canonical archives, member hashes and disposable installer/
 checksum refusal are verified; [the final record](release-2.0.0-final-checkpoint.md)
@@ -18,8 +18,8 @@ its documented scope, not a promise of no defects or every executor binding form
 
 ## Integration and publication — maintainer actions
 
-Repository AGENTS.md reserves main integration for the maintainer. No main or tag
-push was performed as part of preparation.
+The maintainer explicitly authorized Codex to integrate main, verify its CI and
+publish v2.0.0 on 2026-10-08. Publication remains pending until those actions succeed.
 
 1. Fetch origin and inspect the current main plus every checkout affected by cleanup.
    Preserve unexpected changes. Verify current main is an ancestor of the exact
@@ -42,7 +42,7 @@ push was performed as part of preparation.
    dependency caches and needed ignored evidence. No binary replacement is implied.
 
 Prepared archives are preserved in the owned dax-patched-deps-validation worktree
-at `artifacts/release-2.0.0-4d03493/`. Retain them before retiring that checkout.
+at `artifacts/release-2.0.0-87029cb/`. Retain them before retiring that checkout.
 v1.5.0, its release assets and the operator-installed binary remain unchanged.
 
 ## Public limits that stay explicit

@@ -1,6 +1,6 @@
 # DAX 2.0.0 preparation and validation
 
-Latest corrected source: **4d03493e94e7a8f6f78383bc44c9e610a861035e**.
+Latest corrected source: **87029cbd57dd16c330f677b8cc699c3404ecd45f**.
 [Final correction, gates and rebuilt artifacts](release-2.0.0-final-checkpoint.md)
 supersede the earlier prepared-source sections below. Main integration and
 publication remain pending.

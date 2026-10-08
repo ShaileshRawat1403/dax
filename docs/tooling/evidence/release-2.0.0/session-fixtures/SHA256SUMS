@@ -1,0 +1,11 @@
+c72c3316cf377613cb67cabb59eceaf48e28d4b259e4964a2c6928db75946af1  dax-darwin-arm64.tar.gz
+f9bfa93182147a9f03e3713b9b7bee72a4bce51a3b5c46d1c21edb291c2f219b  dax-darwin-x64.tar.gz
+02b0ee9ca419d566abd334278bdf7ea695a8b06d0e9b81cda0bd035a38429baa  dax-darwin-x64-baseline.tar.gz
+866b2fe0d7313995e607d19fea55d76af07a0f7f4f5333bb1b42de597c7837b0  dax-linux-x64.tar.gz
+fd69226ca6f02dc68e9f126f8a9903aa5c3737e7b89ff1441e1b60c2d0757e20  dax-linux-x64-baseline.tar.gz
+c95fc9be40f5094f5a26796d41a23eae20113834fd86ee9ccf44cad50fe70507  dax-linux-x64-musl.tar.gz
+40879976970c8c7198d2da06ab083c805837a91fdc156778227cbdc726836fea  dax-linux-x64-baseline-musl.tar.gz
+f8694c886db89571ce87e0eed9968ef079fec7adfca0a52f534dce7dbb6682e1  dax-linux-arm64.tar.gz
+79bf82f76f05b861a07d3babc2f5aff1201a8c9f59141f584958338c7a54570b  dax-linux-arm64-musl.tar.gz
+e1e3baec50874d3ff32f58be561c8cf190e9f36a6e933c8f7679545bac0cbe1b  dax-windows-x64.zip
+e29b9d515b355d0c9e46bfc035a255924403fa548c1ba4892533e7c4d8ecc2cd  dax-windows-x64-baseline.zip

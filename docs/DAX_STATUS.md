@@ -1,5 +1,16 @@
 # DAX current ownership and release work
 
+## Final source with session fixtures — 2026-10-08
+
+Source **87029cbd57dd16c330f677b8cc699c3404ecd45f** passes exact-source
+Ubuntu/macOS/Windows CI and fresh tagged release-mode gates: 2,401 passed, zero
+skips/failures on macOS. The two formerly skipped collectors now use owned
+persisted fixtures; applicable platform exclusions elsewhere are unchanged.
+[Updated evidence and source](tooling/release-2.0.0-final-checkpoint.md) retain
+older failures and supported-scope limitations. The maintainer authorized Codex
+to integrate, verify main CI and publish 2.0.0. These actions are in progress.
+All earlier source checkpoints below are historical.
+
 ## Authorized 2.0.0 publication — 2026-10-08
 
 The maintainer explicitly authorized Codex to fix the two skipped session

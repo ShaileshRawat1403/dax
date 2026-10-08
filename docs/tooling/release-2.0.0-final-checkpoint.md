@@ -1,27 +1,35 @@
 # Final DAX 2.0.0 release checkpoint
 
 Receipt finalized 2026-10-08. Runtime and intended tag source:
-**`4d03493e94e7a8f6f78383bc44c9e610a861035e`** on
-`release/2.0.0-candidate`. This supersedes c064124 and 2a75a43 prepared
+**`87029cbd57dd16c330f677b8cc699c3404ecd45f`** on
+`release/2.0.0-candidate`. This supersedes c064124,2a75a43 and4d03493 prepared
 sources. This later documentation receipt is not the binary source. Main
 integration, post-merge CI and publication remain pending.
 
 ## Verified preparation
 
-- [Exact-source CI 37656018792](https://github.com/ShaileshRawat1403/dax/actions/runs/37656018792)
+- [Exact-source CI 37716643300](https://github.com/ShaileshRawat1403/dax/actions/runs/37716643300)
   passed Ubuntu, macOS and Windows on its first attempt.
 - Fresh frozen Bun 1.4.0 dependencies, clean independent validation clone and
-  clone-only v2.0.0 tag: **DAX_RELEASE=1 release:gates** passed **2,399 tests,
-  2 skips, 0 failures**, all five cold workspace typechecks, lint, 5/5 smoke
+  clone-only v2.0.0 tag: **DAX_RELEASE=1 release:gates** passed **2,401 tests,
+  zero skips, zero failures** (macOS), all five cold workspace typechecks, lint, 5/5 smoke
   evaluations, Rust fmt/clippy/tests, integrity and release checks.
 - Eleven archives were built with publishing disabled. Archive hashes match the
   manifest; main binary members match their corresponding build outputs. A real
   installer using owned fixture downloads reports 2.0.0 and its installed Rust
   core emits a proof. Corrupted checksums preserve the prior dummy installation.
 - Prepared bytes are preserved in the owned dax-patched-deps-validation checkout
-  at `artifacts/release-2.0.0-4d03493/`. [Durable logs, inventory, checksums,
-  installer and tagged provenance](evidence/release-2.0.0/mcp-fixture/README.md)
+  at `artifacts/release-2.0.0-87029cb/`. [Durable logs, inventory, checksums,
+  installer and tagged provenance](evidence/release-2.0.0/session-fixtures/README.md)
   retain unsuccessful attempts too. No public tag or installed binary changed.
+
+## Session collector coverage
+
+The two ambient-history skips now execute against isolated persisted sessions,
+reopened through the real CLI bootstrap. Exact identity, lifecycle, artifact and
+timeline assertions and missing-record failures pass: 18 tests, 0 skips, 0 failures,
+91 assertions. Production collectors are unchanged; setup errors are no longer
+converted to a null skip. Existing platform-specific exclusions remain unchanged.
 
 ## Corrections and review boundary
 
@@ -47,10 +55,9 @@ and live IdP/provider behavior are not claimed. DAX is not claimed error-free.
 Follow the [publication handoff](release-2.0.0-publication-handoff.md): fast-forward
 main to the final receipt, require exact-main platform CI, then publish v2.0.0 at
 the runtime SHA above. Verify the actual published inventory and disposable
-download before any installed-binary replacement. AGENTS.md reserves main merging
-for the maintainer. Clean up only fully incorporated clean branches/worktrees;
+download before any installed-binary replacement. The maintainer explicitly authorized Codex to integrate and publish this release
+on 2026-10-08. Clean up only fully incorporated clean branches/worktrees;
 preserve dirty/unmerged checkouts, user configuration and needed ignored evidence.
 
-v1.5.0 and its assets remain unchanged. Main still has eight accepted open gaps
-until integration. The operator binary retains SHA-256
+v1.5.0 and its assets remain unchanged. Main retains its prior ledger until integration. The operator binary retains SHA-256
 `5671509d2f18e6d8316fee9bd7df34be96dd409ed628e9b6f5541d1b4e159fb0`.

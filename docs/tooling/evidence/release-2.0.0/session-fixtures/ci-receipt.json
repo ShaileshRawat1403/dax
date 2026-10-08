@@ -1,0 +1,20 @@
+{
+  "source": "87029cbd57dd16c330f677b8cc699c3404ecd45f",
+  "run_id": 37716643300,
+  "url": "https://github.com/ShaileshRawat1403/dax/actions/runs/37716643300",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "validate (macos-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "name": "validate (windows-latest)",
+      "conclusion": "success"
+    }
+  ]
+}
