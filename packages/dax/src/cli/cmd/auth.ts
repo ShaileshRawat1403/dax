@@ -23,11 +23,13 @@ type PluginAuth = NonNullable<Hooks["auth"]>
  * Handle plugin-based authentication flow.
  * Returns true if auth was handled, false if it should fall through to default handling.
  */
-async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string): Promise<boolean> {
-  let method = plugin.auth.methods[0]
+export async function handlePluginAuth(plugin: { auth: PluginAuth }, provider: string): Promise<boolean> {
+  const visible = await getVisibleProviderAuthMethods(provider, plugin.auth.methods)
+  if (visible.length === 0) return false
+  let method = plugin.auth.methods[visible[0]!.originalIndex]!
 
-  if (plugin.auth.methods.length > 1) {
-    const methodOptions = (await getVisibleProviderAuthMethods(provider, plugin.auth.methods)).map((item) => ({
+  if (visible.length > 1) {
+    const methodOptions = visible.map((item) => ({
       label: item.title.length > 60 ? item.title.slice(0, 57) + "..." : item.title,
       value: item.originalIndex.toString(),
       hint: item.hint ? (item.hint.length > 60 ? item.hint.slice(0, 57) + "..." : item.hint) : undefined,

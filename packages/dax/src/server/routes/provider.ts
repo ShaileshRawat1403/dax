@@ -66,7 +66,7 @@ export const ProviderRoutes = lazy(() =>
           providers["claude-code"] = {
             ...providers["anthropic"],
             id: "claude-code",
-            name: "Claude Code (Pro/Plus)",
+            name: "Anthropic API (legacy claude-code ID)",
             models: Object.fromEntries(
               Object.entries(providers["anthropic"].models).map(([modelID, model]) => [
                 modelID,

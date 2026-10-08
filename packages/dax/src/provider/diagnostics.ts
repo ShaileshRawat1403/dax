@@ -72,6 +72,7 @@ export function classifyProviderFailure(input: {
     return "provider_unavailable"
   }
   if (
+    haystack.includes("claude_subscription_oauth_retired") ||
     haystack.includes("scope_missing") ||
     haystack.includes("scope missing") ||
     haystack.includes("audience_mismatch") ||

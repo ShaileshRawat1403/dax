@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { getVisibleProviderAuthMethods } from "./provider-auth"
+import { handlePluginAuth } from "./auth"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -163,4 +164,17 @@ describe("getVisibleProviderAuthMethods", () => {
     ])
     expect(visible.map((item) => item.lane)).toEqual(["openai-chatgpt", "openai-chatgpt", "openai-api"])
   })
+})
+
+
+test("a sole retired OAuth method never reaches the login authorize handler", async () => {
+  let authorizations = 0
+  const handled = await handlePluginAuth({ auth: { provider: "anthropic", methods: [{
+    type: "oauth", label: "Legacy OAuth", authorize: async () => {
+      authorizations += 1
+      throw new Error("Retired OAuth must not authorize")
+    },
+  }] } }, "anthropic")
+  expect(handled).toBe(false)
+  expect(authorizations).toBe(0)
 })

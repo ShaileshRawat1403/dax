@@ -56,3 +56,8 @@ describe("provider diagnostics normalization", () => {
     expect(next).toContain("dax doctor auth --json")
   })
 })
+
+
+test("retired Claude subscription failures remain actionable configuration errors", () => {
+  expect(classifyProviderFailure({ message: "claude_subscription_oauth_retired: native login retired" })).toBe("misconfigured")
+})
