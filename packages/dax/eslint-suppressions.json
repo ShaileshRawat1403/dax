@@ -197,11 +197,6 @@
       "count": 2
     }
   },
-  "src/cli/cmd/provider-auth.ts": {
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/cli/cmd/run.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
@@ -998,25 +993,6 @@
   "src/planner/task-graph.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
-    }
-  },
-  "src/plugin/anthropic.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/plugin/claude-code.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
     }
   },
   "src/plugin/codex.ts": {

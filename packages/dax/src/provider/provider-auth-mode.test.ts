@@ -27,3 +27,13 @@ describe("direct provider credential modes", () => {
     ).toBe(true)
   })
 })
+
+
+test("retired Claude OAuth is unavailable for both native provider IDs", () => {
+  const oauth = { type: "oauth" as const, access: "retired", refresh: "retired", expires: Date.now() + 60_000 }
+  for (const provider of ["anthropic", "claude-code"]) {
+    expect(Provider.supportsDirectModelAccess(oauth, provider)).toBe(false)
+    expect(Provider.supportsDirectModelAccess({ type: "api", key: "fixture" }, provider)).toBe(true)
+  }
+  expect(Provider.supportsDirectModelAccess(oauth, "openai")).toBe(true)
+})

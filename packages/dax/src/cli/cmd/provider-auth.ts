@@ -1,7 +1,7 @@
 import type { ProviderAuthMethod } from "@dax-ai/sdk/v2"
 import { providerLaneLabel, type ProviderLane } from "@/provider/diagnostics"
 
-type ProviderAuthMethodLike = Pick<ProviderAuthMethod, "label" | "description">
+type ProviderAuthMethodLike = Pick<ProviderAuthMethod, "label" | "description"> & Partial<Pick<ProviderAuthMethod, "type">>
 
 export type VisibleProviderAuthMethod<T extends ProviderAuthMethodLike> = {
   method: T
@@ -26,7 +26,7 @@ export async function getVisibleProviderAuthMethods<T extends ProviderAuthMethod
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<VisibleProviderAuthMethod<T>[]> {
   if (isClaudeCodeProvider(providerID)) {
-    return getClaudeCodeAuthMethods(methods, env)
+    return getClaudeCodeAuthMethods(methods)
   }
 
   if (isOpenAIProvider(providerID)) {
@@ -129,45 +129,12 @@ function isOpenAIProvider(providerID: string): boolean {
   return providerID === "openai"
 }
 
-function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(
-  methods: T[],
-  env: NodeJS.ProcessEnv = process.env,
-): VisibleProviderAuthMethod<T>[] {
-  const visible: VisibleProviderAuthMethod<T>[] = []
-
-  const apiKeyIndex = methods.findIndex((m) => m.label.toLowerCase().includes("api key"))
-  if (apiKeyIndex >= 0) {
-    visible.push({
-      method: methods[apiKeyIndex]!,
-      originalIndex: apiKeyIndex,
-      title: providerLaneLabel("anthropic-api")!,
-      description: "Use your API key from console.anthropic.com",
-      hint: "API usage tracking",
-      lane: "anthropic-api",
-    })
-  }
-
-  const oauthIndex = methods.findIndex(
-    (m) =>
-      m.label.toLowerCase().includes("pro") ||
-      m.label.toLowerCase().includes("max") ||
-      m.label.toLowerCase().includes("plus") ||
-      m.label.toLowerCase().includes("sign-in"),
-  )
-  if (oauthIndex >= 0) {
-    visible.push({
-      method: methods[oauthIndex]!,
-      originalIndex: oauthIndex,
-      title: providerLaneLabel("anthropic-subscription")!,
-      description: "Use Claude with your Anthropic Pro or Max subscription",
-      hint: "Subscription access",
-      lane: "anthropic-subscription",
-    })
-  }
-
-  return visible.length > 0
-    ? visible
-    : methods.map((m, i) => ({ method: m, originalIndex: i, title: m.label, description: m.description }))
+function getClaudeCodeAuthMethods<T extends ProviderAuthMethodLike>(methods: T[]): VisibleProviderAuthMethod<T>[] {
+  return methods.flatMap((method, originalIndex) => {
+    if (method.type !== "api" && !(method.type === undefined && method.label.toLowerCase().includes("api key"))) return []
+    return [{ method, originalIndex, title: providerLaneLabel("anthropic-api")!,
+      description: "Use your API key from console.anthropic.com", hint: "API usage tracking", lane: "anthropic-api" as const }]
+  })
 }
 
 function getOpenAIAuthMethods<T extends ProviderAuthMethodLike>(methods: T[]): VisibleProviderAuthMethod<T>[] {

@@ -26,7 +26,7 @@ const laneLabels: Record<ProviderLane, string> = {
   "google-oauth-client": "Google OAuth Client Sign-In",
   vertex: "Google Vertex ADC",
   "anthropic-api": "Claude API Key",
-  "anthropic-subscription": "Claude Pro/Max Sign-In",
+  "anthropic-subscription": "Claude subscription OAuth (retired)",
   "openai-api": "OpenAI API Key",
   "openai-chatgpt": "ChatGPT Plus/Pro Sign-In",
   "copilot-oauth": "GitHub Copilot Sign-In",

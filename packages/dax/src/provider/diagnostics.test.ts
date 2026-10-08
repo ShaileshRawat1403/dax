@@ -9,7 +9,7 @@ import {
 describe("provider diagnostics normalization", () => {
   test("returns canonical lane labels", () => {
     expect(providerLaneLabel("gemini-cli-import")).toBe("Gemini CLI Import (enterprise legacy)")
-    expect(providerLaneLabel("anthropic-subscription")).toBe("Claude Pro/Max Sign-In")
+    expect(providerLaneLabel("anthropic-subscription")).toBe("Claude subscription OAuth (retired)")
     expect(providerLaneLabel("openai-chatgpt")).toBe("ChatGPT Plus/Pro Sign-In")
   })
 

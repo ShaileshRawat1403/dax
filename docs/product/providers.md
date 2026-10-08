@@ -135,27 +135,23 @@ flowchart TD
 
 The internal method names are implementation details. They help DAX choose the right subscription path for the current machine, but they are not meant to be treated as separate public lanes.
 
-## Anthropic Pro/Max Note
+## Claude authentication
 
-Anthropic recently changed how third-party apps consume Claude Pro/Max access.
+Native Anthropic chat is API-key-only. DAX no longer offers or refreshes Claude
+subscription OAuth, rewrites request bodies to claim Claude Code identity, or
+uses saved subscription tokens for direct model requests. Existing credentials
+are preserved; `dax doctor auth anthropic` reports the retired lane explicitly.
+An API key can be configured using `dax auth login anthropic` or
+`ANTHROPIC_API_KEY`. API-key configurations using the old `claude-code` provider
+ID remain compatible; the ID no longer represents subscription access.
 
-For DAX operators, the practical implication is simple:
+The official Claude Code worker remains separate and retains its own CLI
+authentication. This does not promise subscription entitlement for a third-party
+harness. Anthropic directs third-party products to API-key/cloud-provider access;
+any specifically permitted third-party subscription use and usage-credit charges
+are subject to [its current policy](https://support.claude.com/en/articles/13189465-log-in-to-your-claude-account).
 
-- DAX can still use the `Claude Pro/Max Sign-In` lane when your Anthropic session is healthy
-- third-party usage may now draw from Anthropic "extra usage" credit instead of your normal plan bucket
-- if the lane suddenly feels different from yesterday, the change may be billing or policy-side rather than a DAX auth bug
-
-Builder note:
-
-> Apparently the open ecosystem now comes with a velvet rope and a cover charge. A bleakly efficient business model, if not a particularly romantic one for open tooling.
-
-Use diagnostics:
-
-```bash
-dax doctor auth anthropic
-```
-
-If DAX reports `auth_expired`, reconnect. If it reports `ready` but your run still fails, the next likely suspects are rate limits, model availability, or Anthropic-side policy pressure rather than local token expiry.
+This retirement is Unreleased; the published 2.0.0 binary is unchanged.
 
 ### 1. Gemini API Key (Default)
 

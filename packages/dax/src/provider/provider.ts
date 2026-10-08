@@ -43,7 +43,8 @@ import { isGpt5OrLater } from "./openai-model-id"
 export namespace Provider {
   const log = Log.create({ service: "provider" })
 
-  export function supportsDirectModelAccess(auth: Auth.Info): boolean {
+  export function supportsDirectModelAccess(auth: Auth.Info, providerID?: string): boolean {
+    if ((providerID === "anthropic" || providerID === "claude-code") && auth.type === "oauth") return false
     return auth.type !== "oauth" || auth.mode !== "antigravity-import"
   }
 
@@ -108,14 +109,14 @@ export namespace Provider {
         options: {
           headers: {
             "anthropic-beta":
-              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+              "interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
           },
         },
       }
     },
     async "claude-code"() {
       /**
-       * Claude Code provider for Pro/Plus subscriptions.
+       * Legacy API-key-only Claude provider alias.
        * Uses Anthropic API with Claude Code beta features enabled.
        * This provider inherits models from the main Anthropic provider.
        * @returns Provider configuration with beta headers for Claude Code features
@@ -125,7 +126,7 @@ export namespace Provider {
         options: {
           headers: {
             "anthropic-beta":
-              "claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+              "interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
           },
         },
       }
@@ -829,13 +830,13 @@ export namespace Provider {
       }
     }
 
-    // Add Claude Code provider (Pro/Plus subscription) that inherits models from Anthropic API
+    // Preserve the old provider ID for saved API-key configurations, not subscription OAuth.
     if (database["anthropic"]) {
       const anthropic = database["anthropic"]
       database["claude-code"] = {
         ...anthropic,
         id: "claude-code",
-        name: "Claude Code (Pro/Plus)",
+        name: "Anthropic API (legacy claude-code ID)",
         models: mapValues(anthropic.models, (model) => ({
           ...model,
           providerID: "claude-code",
@@ -981,7 +982,7 @@ export namespace Provider {
         // AGY owns this credential and may execute tools of its own. It is
         // intentionally exposed only through DAX's governed worker boundary,
         // never as an ordinary direct-chat Google credential.
-        if (!supportsDirectModelAccess(auth)) continue
+        if (!supportsDirectModelAccess(auth, targetID)) continue
 
         const options = await plugin.auth.loader(() => Auth.get(targetID) as any, database[targetID])
         const opts = options ?? {}

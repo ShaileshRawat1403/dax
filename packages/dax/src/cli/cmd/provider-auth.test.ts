@@ -117,7 +117,7 @@ describe("getVisibleProviderAuthMethods", () => {
     expect(visible[0]?.originalIndex).toBe(0)
   })
 
-  test("collapses anthropic auth into api key and subscription sign-in lanes", async () => {
+  test("hides retired Anthropic OAuth while preserving the API method index", async () => {
     const visible = await getVisibleProviderAuthMethods("anthropic", [
       {
         type: "oauth" as const,
@@ -131,8 +131,10 @@ describe("getVisibleProviderAuthMethods", () => {
       },
     ])
 
-    expect(visible.map((item) => item.title)).toEqual(["Claude API Key", "Claude Pro/Max Sign-In"])
-    expect(visible.map((item) => item.lane)).toEqual(["anthropic-api", "anthropic-subscription"])
+    expect(visible.map((item) => item.title)).toEqual(["Claude API Key"])
+    expect(visible.map((item) => item.lane)).toEqual(["anthropic-api"])
+    expect(visible.map((item) => item.originalIndex)).toEqual([1])
+    expect(await getVisibleProviderAuthMethods("claude-code", [{ type: "oauth", label: "Sign-In" }])).toEqual([])
   })
 
   test("normalizes openai auth method titles without changing method count", async () => {

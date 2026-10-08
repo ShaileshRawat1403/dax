@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Retire native Claude subscription OAuth sign-in, token refresh and request
+  identity rewriting; remove its unused duplicate adapter. API keys, legacy
+  API-key provider IDs and the official Claude Code CLI worker remain supported.
+  Stored credentials are preserved, and diagnostics explain the retired lane.
+
 - Windows native ledger lock acquisition handles bounded delete-pending/sharing
   contention without stealing locks, suppressing ledger IO errors or treating
   denied access as permission to write. This is not in the published 2.0.0 tag.

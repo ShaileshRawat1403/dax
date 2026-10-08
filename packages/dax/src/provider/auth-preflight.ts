@@ -79,17 +79,6 @@ function env(key: string) {
   return Env.get(key) ?? process.env[key] ?? Bun.env[key]
 }
 
-function formatRelativeMs(ms: number) {
-  const abs = Math.abs(ms)
-  const minutes = Math.floor(abs / 60_000)
-  const hours = Math.floor(abs / 3_600_000)
-  const days = Math.floor(abs / 86_400_000)
-  if (days >= 1) return `${days}d`
-  if (hours >= 1) return `${hours}h`
-  if (minutes >= 1) return `${minutes}m`
-  return `${Math.max(0, Math.floor(abs / 1000))}s`
-}
-
 function effectiveGoogleOAuthClientID() {
   const custom = Auth.get("google")
   return custom.then((auth) => {
@@ -583,61 +572,6 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
   const auth = await Auth.get(providerID)
   const hasApiKey = Boolean(env("ANTHROPIC_API_KEY") || env("CLAUDE_API_KEY"))
 
-  if (auth?.type === "oauth") {
-    const expired = auth.expires <= Date.now()
-    // Detect stale placeholder token written by the old stub implementation.
-    if (!auth.access || auth.access === "subscription-detected") {
-      return {
-        providerID,
-        mode: "anthropic-oauth",
-        lane: "anthropic-subscription",
-        laneLabel: providerLaneLabel("anthropic-subscription"),
-        ok: false,
-        requiredEnv: [],
-        missingEnv: [],
-        details: [
-          `${providerID} OAuth token is a stale placeholder from a previous version.`,
-          "Re-authenticate with 'dax auth login' to get a real token.",
-        ],
-        failureCategory: "auth_expired",
-        next: [
-          providerFailureNextStep({
-            category: "auth_expired",
-            providerID,
-            lane: "anthropic-subscription",
-          }),
-        ],
-        error: `${providerID} OAuth session is invalid. Run 'dax auth login ${providerID}' to re-authenticate.`,
-      }
-    }
-    return {
-      providerID,
-      mode: "anthropic-oauth",
-      lane: "anthropic-subscription",
-      laneLabel: providerLaneLabel("anthropic-subscription"),
-      ok: !expired,
-      requiredEnv: [],
-      missingEnv: [],
-      details: [
-        `${providerID} authenticated via OAuth (Pro/Max subscription)`,
-        `OAuth token expires ${auth.expires <= Date.now() ? "in the past" : `in ${formatRelativeMs(auth.expires - Date.now())}`}`,
-        `OAuth expiry timestamp: ${new Date(auth.expires).toISOString()}`,
-        "This lane can be rate-limited by Anthropic independently of claude.ai web usage.",
-      ],
-      failureCategory: expired ? "auth_expired" : undefined,
-      next: expired
-        ? [
-            providerFailureNextStep({
-              category: "auth_expired",
-              providerID,
-              lane: "anthropic-subscription",
-            }),
-          ]
-        : undefined,
-      error: expired ? `${providerID} OAuth token is expired. Re-authenticate before retrying this lane.` : undefined,
-    }
-  }
-
   if (auth?.type === "api" || hasApiKey) {
     return {
       providerID,
@@ -647,10 +581,24 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
       source: hasApiKey ? "env" : "api-key",
       ok: true,
       requiredEnv: ["ANTHROPIC_API_KEY or CLAUDE_API_KEY"],
-      missingEnv: hasApiKey ? [] : ["ANTHROPIC_API_KEY"],
-      details: hasApiKey
-        ? [`${providerID} authenticated via API key`]
-        : [`${providerID} API key not found. Set ANTHROPIC_API_KEY or run 'dax auth login'.`],
+      missingEnv: [],
+      details: [`${providerID} authenticated via ${hasApiKey ? "environment" : "stored"} API key`],
+    }
+  }
+
+  if (auth?.type === "oauth") {
+    return {
+      providerID,
+      mode: "anthropic-oauth",
+      lane: "anthropic-subscription",
+      laneLabel: providerLaneLabel("anthropic-subscription"),
+      ok: false,
+      requiredEnv: ["ANTHROPIC_API_KEY"],
+      missingEnv: ["ANTHROPIC_API_KEY"],
+      failureCategory: "misconfigured",
+      error: "claude_subscription_oauth_retired: native Claude subscription OAuth has been retired in DAX.",
+      details: ["Stored credentials are preserved but are not used or refreshed for native chat."],
+      next: ["Configure an Anthropic API key with `dax auth login anthropic`, or use the official Claude Code CLI worker with its own authentication."],
     }
   }
 
@@ -667,8 +615,8 @@ async function diagnoseAnthropicProvider(providerID: string): Promise<AuthDiagno
     error: `${providerID} auth not configured. Run 'dax auth login ${providerID}' or set ANTHROPIC_API_KEY.`,
     details: [
       providerID === "claude-code"
-        ? "Claude Code (Pro/Plus) requires OAuth subscription or API key"
-        : "Anthropic provider requires ANTHROPIC_API_KEY or OAuth login",
+        ? "The legacy claude-code provider ID requires an Anthropic API key"
+        : "Anthropic native chat requires an API key; subscription OAuth has been retired",
     ],
   }
 }

@@ -343,8 +343,8 @@ export const AuthLoginCommand = cmd({
             map(([id, x]) => {
               let providerHint = {
                 dax: "recommended",
-                anthropic: "Claude Max or API key",
-                "claude-code": "Claude Pro/Max subscription",
+                anthropic: "Claude API key",
+                "claude-code": "Legacy Anthropic API key",
                 openai: "ChatGPT Plus/Pro or API key",
                 google: "Google account for Gemini Pro/Plus",
                 "github-copilot": "GitHub Copilot subscription — free to use",
