@@ -129,19 +129,39 @@ pub fn append_to_file(path: &Path, body: &Value, ts: &str) -> Result<LedgerEntry
         create_dir_private(parent)?;
     }
 
-    let _lock = LedgerLock::acquire(path)?;
+    let _lock = LedgerLock::acquire(path).inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("ledger append phase=lock error={error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })?;
 
-    let entries = load_jsonl(path)?;
+    let entries = load_jsonl(path).inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("ledger append phase=read error={error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })?;
     let entry = append(entries.last(), body, ts);
 
     let mut options = OpenOptions::new();
     options.create(true).append(true);
     #[cfg(unix)]
     options.mode(0o600);
-    let mut file = options.open(path)?;
+    let mut file = options.open(path).inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("ledger append phase=open-data error={error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })?;
 
     writeln!(file, "{}", serde_json::to_string(&entry)?)?;
-    file.sync_data()?;
+    file.sync_data().inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("ledger append phase=sync error={error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })?;
 
     Ok(entry)
 }
@@ -218,6 +238,26 @@ mod tests {
     }
 
     #[cfg(windows)]
+    fn mark_delete_pending(path: &Path) -> std::io::Result<()> {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn DeleteFileW(path: *const u16) -> i32;
+        }
+        let wide: Vec<u16> = path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        // SAFETY: wide owns a valid NUL-terminated UTF-16 path for this call.
+        // Use classic Win32 semantics, not std's optional POSIX-style unlink.
+        if unsafe { DeleteFileW(wide.as_ptr()) } == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
     #[test]
     fn delete_pending_lock_retries_only_after_the_owner_handle_closes() {
         use std::os::windows::fs::OpenOptionsExt;
@@ -232,7 +272,7 @@ mod tests {
             .share_mode(7)
             .open(&lock)
             .unwrap();
-        fs::remove_file(&lock).unwrap();
+        mark_delete_pending(&lock).unwrap();
         // This is the exact baseline atomic-create operation, not a fake error.
         let error = OpenOptions::new()
             .write(true)
@@ -273,7 +313,7 @@ mod tests {
             .share_mode(7)
             .open(&lock)
             .unwrap();
-        fs::remove_file(&lock).unwrap();
+        mark_delete_pending(&lock).unwrap();
         let error =
             LedgerLock::acquire_with_wait(&path, Duration::ZERO, |_| panic!("deadline must fail"))
                 .err()
