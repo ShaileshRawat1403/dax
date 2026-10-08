@@ -1,5 +1,16 @@
 # DAX current ownership and release work
 
+## Authorized 2.0.1 closeout — 2026-10-08
+
+The maintainer authorized integrating, publishing and installing 2.0.1, replacing
+the old local binary, and safe DAX-only branch/disk cleanup. This patch includes
+reviewed native Claude OAuth retirement and bounded Windows ledger lock hardening.
+[Patch scope and migration](product/release-2.0.1.md) retain the unidentified
+Windows failure limitations. Exact-source validation, main CI, tag publication,
+download verification and local replacement remain in progress. The public 2.0.0
+tag/assets remain immutable. Verb, shared caches, active processes, user state
+and unique/dirty work are outside cleanup. Earlier status sections are historical.
+
 ## Unreleased Claude authentication retirement — 2026-10-08
 
 The maintainer approved retiring native Claude subscription OAuth, including
