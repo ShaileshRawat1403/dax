@@ -1,0 +1,92 @@
+{
+  "release": "v2.0.1",
+  "source": "fe911e57415dcfa9d101bd2584b28d2ea3c84694",
+  "release_id": 406925816,
+  "published_at": "2026-10-08T14:37:30Z",
+  "url": "https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.1",
+  "archives": [
+    {
+      "name": "dax-darwin-arm64.tar.gz",
+      "sha256": "223bad725158f10c788357c78cea54fe59413827edd1adf47c3d936c57852611",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-darwin-x64.tar.gz",
+      "sha256": "e63aa1da4099f9aaf0d568c91352a4b09e36ac72dfce46420c3235dff7e72913",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-darwin-x64-baseline.tar.gz",
+      "sha256": "34e76808edb0c1373ead24ce7cdb9be9ea91c58ff40ed6aced0d74d26ee8f56b",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-linux-x64.tar.gz",
+      "sha256": "8823ddd2a33098c34ffa2a230a7e792f533e680db43d8614f83ca84282454d3a",
+      "members": [
+        "dax",
+        "dax-core",
+        "dax-policy",
+        "dax-audit",
+        "dax-ledger",
+        "dax-indexer"
+      ]
+    },
+    {
+      "name": "dax-linux-x64-baseline.tar.gz",
+      "sha256": "51896672d26da36a880e3c08a9ed9a4496a621197b99df829792fa191f2b5803",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-linux-x64-musl.tar.gz",
+      "sha256": "8f2ef07a31ceee4ccbcace0db4e29d0ef9c7787deefc77d1aeb8ae947bc3952c",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-linux-x64-baseline-musl.tar.gz",
+      "sha256": "c29a8cb28c77138ff234cfa557008db1de34a96a2463244ce7a41a91a03e6dba",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-linux-arm64.tar.gz",
+      "sha256": "23c83e09e4b203f11618cc27b3508fc9b89be4eb0b5377bd29d63739a7b9941e",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-linux-arm64-musl.tar.gz",
+      "sha256": "e16d1c081bd9004b6e0d810991a45538a4413095f4402dee26711ab3c023e0cb",
+      "members": [
+        "dax"
+      ]
+    },
+    {
+      "name": "dax-windows-x64.zip",
+      "sha256": "fbc739dc6aacbe4fce539b80e9b6c11cd3775852113cbf012e3443eda301cbc6",
+      "members": [
+        "dax.exe"
+      ]
+    },
+    {
+      "name": "dax-windows-x64-baseline.zip",
+      "sha256": "a967552751e482a474affb684a3e8ed46249f0f937df56dbb04b335871b1483e",
+      "members": [
+        "dax.exe"
+      ]
+    }
+  ],
+  "asset_count": 14
+}

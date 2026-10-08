@@ -1,7 +1,9 @@
 # DAX 2.0.1 patch release
 
-Prepared 2026-10-08; publication and installation status is tracked in
-[the current status](../DAX_STATUS.md). The maintainer authorized this patch;
+Published 2026-10-08 at [v2.0.1](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.1),
+source **fe911e57415dcfa9d101bd2584b28d2ea3c84694**. The local installation now
+reports 2.0.1. [Publication and install evidence](../tooling/evidence/release-2.0.1/published/README.md)
+records verified assets, packaged diagnostics and DAX-only cleanup.
 2.0.0 and earlier tags/assets remain immutable.
 
 ## Changes and migration
@@ -26,7 +28,8 @@ Prepared 2026-10-08; publication and installation status is tracked in
 [Authentication source evidence](../tooling/evidence/claude-oauth-retirement/README.md)
 and [ledger evidence](../tooling/evidence/windows-ledger-contention/README.md)
 pin prior reviewed sources, passing platform controls and failed attempts. Final
-2.0.1 source gates and release publication still require their own verification.
+2.0.1 source and post-integration CI passed all three platforms; tagged-mode
+gates, build/publication, all eleven archive checksums and public install passed.
 The earlier Windows compiled-probe fixture EBUSY handle remains unidentified;
 subsequent passing CI does not establish its cause. No AGY latency fix is claimed.
 

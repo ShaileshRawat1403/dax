@@ -1,0 +1,162 @@
+{
+  "available_before_bytes": 16480382976,
+  "available_after_bytes": 32369561600,
+  "observed_available_increase_bytes": 15889178624,
+  "removed": [
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/command-shell-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "a768d0219afed53f2c23d2b7cab4250ee1f352ae"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/context-read-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "178ec84e1246e7d9ee24e79790224ba70a7b1086"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/mcp-resource-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "2e95c8d16f6c2106ac3fce28a0b7be25cc1511a9"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/operator-capability-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "ccd4dd37fc1c4370849d1bb056c43cc5c15b0617"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/owned-custom-capability/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "3c47d1a3045fa311bba4755d3aff8c5735e1baa2"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/runtime-guard-paths/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "11a3533702e4fdeac6d0cbca8d1c167d9341a294"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/template-context-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "1348e7d28b35fc9153e91604eca20eaacb2403c4"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/worker-capability-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "a51433f613f4376b1d218c869702ba032f0e19c7"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/workflow-capability-identity/dax/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "afb7d7eb158cd900f4a805fb7313f5ea83a2c5b2"
+    },
+    {
+      "path": "/Users/Shailesh/MYAIAGENTS/dax/.claude/worktrees/conformance-execution-opus/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "18226c22dab1bb6d07d3a867a8ce8f2bd8334a3d"
+    },
+    {
+      "path": "/Users/Shailesh/MYAIAGENTS/dax/.claude/worktrees/native-capability-registry/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "b26058ffd3f3bb230f645621b5efe9906ae3ca03"
+    },
+    {
+      "path": "/Users/Shailesh/MYAIAGENTS/dax/.claude/worktrees/release-2.0.0-review/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "c06412458a12d8208457f339332f2f8195766e9c"
+    },
+    {
+      "path": "/Users/Shailesh/MYAIAGENTS/dax/.claude/worktrees/release-candidate-review/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "2463ef55ac7a9ed0712c1460c3c0a78af752317c"
+    },
+    {
+      "path": "/Users/Shailesh/MYAIAGENTS/dax/.claude/worktrees/run-envelope-audit-validation/target",
+      "kind": "inactive-frozen-rust-cache",
+      "head": "3c47d1a3045fa311bba4755d3aff8c5735e1baa2"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-4d03493",
+      "kind": "old-generated-release-staging",
+      "source": "4d03493"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-45d0484",
+      "kind": "old-generated-release-staging",
+      "source": "45d0484"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-02cc3ab",
+      "kind": "old-generated-release-staging",
+      "source": "02cc3ab"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-2a75a43",
+      "kind": "old-generated-release-staging",
+      "source": "2a75a43"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-87029cb",
+      "kind": "old-generated-release-staging",
+      "source": "87029cb"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/artifacts/release-2.0.0-c064124",
+      "kind": "old-generated-release-staging",
+      "source": "c064124"
+    },
+    {
+      "path": "/Users/ananyalayek/.codex/worktrees/dax-patched-deps-validation/dax/packages/dax/dist",
+      "kind": "old-generated-dist"
+    },
+    {
+      "path": "/private/tmp/dax-v2-cmd-release-mode.gFUaNQ/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "2a75a430f2891cb8fd861a4d39c2a4fc3f94eef1"
+    },
+    {
+      "path": "/private/tmp/dax-v2-env-release-mode.7o72Hs/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "45d048450e6b61a82fe80cf83940f6b442624d67"
+    },
+    {
+      "path": "/private/tmp/dax-v2-final-release-mode.1dMgRw/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "02cc3abad7d361303810ac5e7d0f95578493dade"
+    },
+    {
+      "path": "/private/tmp/dax-v2-mcp-release-mode.3gmQdv/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "4d03493e94e7a8f6f78383bc44c9e610a861035e"
+    },
+    {
+      "path": "/private/tmp/dax-v2-release-mode-764c92i2/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "c06412458a12d8208457f339332f2f8195766e9c"
+    },
+    {
+      "path": "/private/tmp/dax-v2-session-release-mode.ykIvX0/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "87029cbd57dd16c330f677b8cc699c3404ecd45f"
+    },
+    {
+      "path": "/private/tmp/dax-2.0.1-tagged.i3IMlA/node_modules",
+      "kind": "owned-validation-cache",
+      "head": "fe911e57415dcfa9d101bd2584b28d2ea3c84694"
+    },
+    {
+      "path": "/private/tmp/dax-2.0.1-tagged.i3IMlA/target",
+      "kind": "owned-validation-cache",
+      "head": "fe911e57415dcfa9d101bd2584b28d2ea3c84694"
+    },
+    {
+      "path": "/private/tmp/dax-v2-published-assets.uHXoIM",
+      "kind": "superseded-owned-download-scratch"
+    },
+    {
+      "path": "/private/tmp/dax-v2-published-install.QLkjFJ",
+      "kind": "superseded-owned-download-scratch"
+    }
+  ],
+  "skipped": [],
+  "frozen_source_refs_and_node_dependencies_preserved": true,
+  "verb_primary_dependencies_shared_caches_user_state_processes_untouched": true
+}

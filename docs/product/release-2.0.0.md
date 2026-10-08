@@ -76,5 +76,5 @@ appends on Windows. The failed operation and OS handle remain unidentified.
 Bounded lock-acquisition hardening is tracked separately in
 [the current status](../DAX_STATUS.md) and
 [retained evidence](../tooling/evidence/windows-ledger-contention/README.md).
-It is Unreleased and is not part of the immutable v2.0.0 tag or assets. It never
+It is included in [2.0.1](release-2.0.1.md) and is not part of the immutable v2.0.0 tag or assets. It never
 steals an existing lock or converts persistent denial into permission to write.

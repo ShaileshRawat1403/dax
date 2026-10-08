@@ -1,0 +1,26 @@
+{
+  "version": "2.0.1",
+  "source": "fe911e57415dcfa9d101bd2584b28d2ea3c84694",
+  "installed_path": "/Users/ananyalayek/.local/bin/dax",
+  "sha256": "fc215efd4cb7eb65b142a9148b3949d1d89aa3eed84467d4b28f08557703a827",
+  "old_version": "2.0.0",
+  "old_sha256": "44d68af2676b9f9290eda1bbaf620707657cd217393fa3c0fa3e5b24f152fb39",
+  "old_binary_removed": true,
+  "fresh_terminal": "/Users/ananyalayek/.local/bin/dax\n2.0.1",
+  "packaged_controls": [
+    {
+      "mode": "retired",
+      "exit": 1,
+      "state": "blocked",
+      "auth_unchanged": true
+    },
+    {
+      "mode": "api-key",
+      "exit": 0,
+      "state": "connected",
+      "auth_unchanged": true
+    }
+  ],
+  "probe_root": "/private/tmp/dax-2.0.1-runtime-ibm1pybt",
+  "user_configuration_and_sessions_preserved": true
+}

@@ -11,6 +11,8 @@ No additional changes recorded.
 
 ## [2.0.1] - 2026-10-08
 
+Published: [DAX 2.0.1](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.1).
+
 - Retire native Claude subscription OAuth sign-in, token refresh and request
   identity rewriting; remove its unused duplicate adapter. API keys, legacy
   API-key provider IDs and the official Claude Code CLI worker remain supported.

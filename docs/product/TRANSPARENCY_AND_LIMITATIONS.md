@@ -14,15 +14,17 @@ last_reviewed: 2026-08-19
 
 # Transparency and Limitations
 
-## Published 2.0.0 boundary
+## Published 2.0.1 boundary
 
 HTTP operator actions require configured credentials; actor names remain audit
 labels, not verified people. This does not isolate arbitrary same-user code that
 can access operator credentials. Reviewed plugin/local-MCP/worker/verifier
 executable bindings remain unavailable and denied. An empty sprint ledger means
 the documented scope was implemented and checked, not that all defects are gone.
-See [the 2.0.0 release migration and limits](release-2.0.0.md). Version 2.0.0
-was published 2026-10-08; older release evidence remains version-specific.
+See [the 2.0.1 patch and retained limits](release-2.0.1.md). Native Claude OAuth
+is retired; API keys and separate official CLI workers remain. Windows lock
+hardening does not establish the original intermittent failure cause. Version
+2.0.1 was published 2026-10-08; older evidence remains version-specific.
 
 
 DAX is designed for trust. This document explains what DAX can do, what it cannot guarantee, and why human oversight matters.

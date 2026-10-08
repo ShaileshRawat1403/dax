@@ -151,7 +151,7 @@ harness. Anthropic directs third-party products to API-key/cloud-provider access
 any specifically permitted third-party subscription use and usage-credit charges
 are subject to [its current policy](https://support.claude.com/en/articles/13189465-log-in-to-your-claude-account).
 
-This retirement is included in the prepared 2.0.1 patch. The immutable 2.0.0
+This retirement is included in the published 2.0.1 patch. The immutable 2.0.0
 assets remain unchanged; see [patch publication status](../DAX_STATUS.md).
 
 ### 1. Gemini API Key (Default)

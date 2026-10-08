@@ -1,5 +1,28 @@
 # DAX current ownership and release work
 
+## Published and installed 2.0.1 — 2026-10-08
+
+[DAX 2.0.1](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.1) is
+published at source/tag **fe911e57415dcfa9d101bd2584b28d2ea3c84694**.
+[Main CI](https://github.com/ShaileshRawat1403/dax/actions/runs/37791234696)
+passed Ubuntu, macOS and Windows;
+[tagged release gates/build/publication](https://github.com/ShaileshRawat1403/dax/actions/runs/37793057627)
+passed. All eleven archive hashes and the actual public installer were verified.
+The local PATH binary now reports 2.0.1; old2.0.0 was atomically replaced and its
+temporary rollback link removed. Packaged diagnostics reject retired Claude OAuth
+and accept API keys while preserving token files. Official CLI workers remain
+separate and unchanged. Windows lock hardening is included in this patch, but
+original intermittent operation/handle causes remain unidentified.
+
+[Publication/install/cleanup evidence](tooling/evidence/release-2.0.1/published/README.md)
+records roughly14.8 GiB reclaimed by DAX-only generated-file cleanup, leaving
+about30 GiB available. Frozen source/refs and Node dependencies, dirty/unmerged
+work, user state, primary dependencies, shared caches, Verb and running processes
+were preserved. Unused merged release refs are cleaned after final CI. The
+original scoped gap ledger stays empty; AGY latency remains a separate task.
+2.0.0/v1.5.0 and earlier tags/assets remain immutable. Older sections below are
+historical, including previous installation and Unreleased-candidate statements.
+
 ## Authorized 2.0.1 closeout — 2026-10-08
 
 The maintainer authorized integrating, publishing and installing 2.0.1, replacing

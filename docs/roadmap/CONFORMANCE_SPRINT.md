@@ -1,5 +1,14 @@
 # Conformance sprint: original nine-gap scope
 
+## Published 2.0.1 patch — 2026-10-08
+
+The [2.0.1 patch](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.1)
+ships native Claude OAuth retirement and bounded Windows lock handling, with
+all-platform source/main CI and verified published assets/local installation.
+The original scoped ledger remains empty; this adds no new gap closure or AGY
+latency claim. Known Windows causes and unsupported binding forms remain explicit.
+See the current DAX status and patch migration; the 2.0.0 record below is historical.
+
 ## Published 2.0.0 — 2026-10-08
 
 [DAX 2.0.0](https://github.com/ShaileshRawat1403/dax/releases/tag/v2.0.0) is
