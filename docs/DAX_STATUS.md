@@ -1,5 +1,15 @@
 # DAX current ownership and release work
 
+## Unreleased Claude authentication retirement — 2026-10-08
+
+The maintainer approved retiring native Claude subscription OAuth, including
+login, refresh and request-identity rewriting. API keys and legacy API-key provider
+IDs remain supported; saved credentials and the official Claude Code worker are
+preserved. [Source and validation](tooling/evidence/claude-oauth-retirement/README.md)
+record the reviewed feature branch candidate, controls, all-platform source CI
+and retained failures. The published
+and installed 2.0.0 binary is unchanged; no new release has been authorized.
+
 ## Local installation — 2026-10-08
 
 The maintainer-authorized local upgrade replaced the PATH-resolved 1.5.0
